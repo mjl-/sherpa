@@ -8,6 +8,23 @@ This library makes it trivial to export Go functions as a Sherpa API, including 
 
 Use the sherpaweb tool to read API documentation and call methods (for testing purposes).
 
+Use the CLI tool sherpaclient to inspect API's through the command-line:
+
+	# the basics of the API
+	$ sherpaclient -info https://sherpa.irias.nl/exampleapi/
+
+	# call a function
+	$ sherpaclient http://localhost:8080/exampleapi/ echo '["test", 123, [], {"a": 123.34, "b": null}]'
+	["test",123,[],{"a":123.34,"b":null}]
+
+	# all documentation
+	$ sherpaclient -docs https://sherpa.irias.nl/exampleapi/
+	...
+
+	# documentation for just one function
+	$ sherpaclient -docs https://sherpa.irias.nl/exampleapi/ echo
+	...
+
 
 # Documentation
 

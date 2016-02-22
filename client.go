@@ -78,7 +78,7 @@ func (c *Client) Call(result interface{}, functionName string, params ...interfa
 		if response.Error != nil {
 			return response.Error
 		}
-		err = json.Unmarshal(response.Result, &result)
+		err = json.Unmarshal(response.Result, result)
 		if err != nil {
 			return &Error{Code: SherpaBadResponse, Message: "could not unmarshal JSON response"}
 		}
