@@ -80,7 +80,7 @@ var postJSON = function(url, param, success, error) {
 		}
 	};
 	req.onerror = function() {
-		error({code: 'sherpaClientError', message: "connection error"});
+		error({code: 'sherpaClientError', message: 'connection failed'});
 	};
 	req.setRequestHeader('Content-Type', 'application/json');
 	req.send(JSON.stringify(param));
