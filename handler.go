@@ -71,7 +71,7 @@ func call(fn interface{}, r io.Reader) (interface{}, *Error) {
 		return nil, &Error{Code: SherpaBadRequest, Message: "invalid JSON request body: " + err.Error()}
 	}
 
-	t := reflect.TypeOf(fn)
+	fnt := reflect.TypeOf(fn)
 
 	var params []interface{}
 	err = json.Unmarshal(request.Params, &params)
@@ -79,11 +79,10 @@ func call(fn interface{}, r io.Reader) (interface{}, *Error) {
 		return nil, &Error{Code: SherpaBadRequest, Message: "invalid JSON request body: " + err.Error()}
 	}
 
-	need := t.NumIn()
-	if t.IsVariadic() {
-		need -= 1
-		if len(params) < need {
-			return nil, &Error{Code: SherpaBadParams, Message: fmt.Sprintf("bad number of parameters, got %d, want at least %d", len(params), need)}
+	need := fnt.NumIn()
+	if fnt.IsVariadic() {
+		if len(params) != need-1 && len(params) != need {
+			return nil, &Error{Code: SherpaBadParams, Message: fmt.Sprintf("bad number of parameters, got %d, want %d or %d", len(params), need-1, need)}
 		}
 	} else {
 		if len(params) != need {
@@ -91,10 +90,10 @@ func call(fn interface{}, r io.Reader) (interface{}, *Error) {
 		}
 	}
 
-	values := make([]reflect.Value, t.NumIn())
-	args := make([]interface{}, t.NumIn())
+	values := make([]reflect.Value, fnt.NumIn())
+	args := make([]interface{}, fnt.NumIn())
 	for i := range values {
-		n := reflect.New(t.In(i))
+		n := reflect.New(fnt.In(i))
 		values[i] = n.Elem()
 		args[i] = n.Interface()
 	}
@@ -104,23 +103,44 @@ func call(fn interface{}, r io.Reader) (interface{}, *Error) {
 		return nil, &Error{Code: SherpaBadParams, Message: fmt.Sprintf("could not parse parameters: " + err.Error())}
 	}
 
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	checkError := fnt.NumOut() > 0 && fnt.Out(fnt.NumOut()-1).Implements(errorType)
+
 	var results []reflect.Value
-	if t.IsVariadic() {
+	if fnt.IsVariadic() {
 		results = reflect.ValueOf(fn).CallSlice(values)
 	} else {
 		results = reflect.ValueOf(fn).Call(values)
 	}
-	switch len(results) {
-	case 0:
+	if len(results) == 0 {
 		return nil, nil
-	case 1:
-		return results[0].Interface(), nil
-	default:
-		rr := make([]interface{}, len(results))
-		for i, v := range results {
-			rr[i] = v.Interface()
+	}
+
+	rr := make([]interface{}, len(results))
+	for i, v := range results {
+		rr[i] = v.Interface()
+	}
+	if !checkError {
+		if len(rr) == 1 {
+			return rr[0], nil
 		}
 		return rr, nil
+	}
+	rr, rerr := rr[:len(rr)-1], rr[len(rr)-1]
+	var rv interface{} = rr
+	if len(rr) == 1 {
+		rv = rr[0]
+	}
+	if rerr == nil {
+		return rv, nil
+	}
+	switch r := rerr.(type) {
+	case *Error:
+		return nil, r
+	case error:
+		return nil, &Error{Message: r.Error()}
+	default:
+		panic("checkError while type is not error")
 	}
 }
 
@@ -132,6 +152,12 @@ func call(fn interface{}, r io.Reader) (interface{}, *Error) {
 // functions are the functions you want to make available through this handler.
 //
 // This handler expects to be called with any path elements stripped using http.StripPrefix.
+//
+// If the last return value (if any) is an error (i.e. has an "Error() string"-function,
+// that error field is taken to indicate whether the call succeeded.
+// Functions can also panic with an *Error to indicate a failed function call.
+//
+// Variadic functions can be called, but in the call (from the client), the variadic parameter must be passed in as an array.
 func NewHandler(baseURL, id, title, version string, functions map[string]interface{}) (http.Handler, error) {
 	var redirectURL string
 	u, err := url.Parse(baseURL)
