@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -16,15 +17,14 @@ const SherpaVersion = 0
 
 // handler that responds to all Sherpa-related requests.
 type handler struct {
-	baseURL   string
-	id        string
-	title     string
-	version   string
-	functions map[string]interface{}
-
-	redirectURL string
-	json        []byte
-	javascript  []byte
+	baseURL    string
+	id         string
+	title      string
+	version    string
+	functions  map[string]interface{}
+	docsURL    string
+	json       []byte
+	javascript []byte
 }
 
 // Sherpa API error object.
@@ -43,6 +43,44 @@ func (e *Error) Error() string {
 type response struct {
 	Result interface{} `json:"result,omitempty"`
 	Error  *Error      `json:"error,omitempty"`
+}
+
+var htmlTemplate *template.Template
+
+func init() {
+	var err error
+	htmlTemplate, err = template.New("html").Parse(`<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>{{.title}}</title>
+		<style>
+body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; line-height:1.4; font-size:16px; color: #333; }
+a { color: #327CCB; }
+.code { padding: 2px 4px; font-size: 90%; color: #c7254e; background-color: #f9f2f4; border-radius: 4px; }
+		</style>
+	</head>
+	<body>
+		<div style="margin:1em auto 1em; max-width:45em">
+			<h1>{{.title}} <span style="font-weight:normal; font-size:0.7em">- version {{.version}}</span></h1>
+			<p>
+				This is the base URL for {{.title}}. The API has been loaded on this page, under variable <span class="code">{{.id}}</span>. So open your browser's developer console and start calling functions!
+			</p>
+			<p>
+				You can also the <a href="{{.docsURL}}">read documentation</a> for this API.</p>
+			</p>
+			<p style="text-align: center; font-size:smaller; margin-top:8ex;">
+				<a href="https://bitbucket.org/mjl/sherpa/">go sherpa code</a> |
+				<a href="https://www.ueber.net/who/mjl/sherpa/">sherpa api's</a> |
+				<a href="https://bitbucket.org/mjl/sherpaweb/">sherpaweb code</a>
+			</p>
+		</div>
+		<script src="{{.jsURL}}"></script>
+	</body>
+</html>`)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func respond(w http.ResponseWriter, status int, r *response) {
@@ -159,14 +197,16 @@ func call(fn interface{}, r io.Reader) (interface{}, *Error) {
 //
 // Variadic functions can be called, but in the call (from the client), the variadic parameter must be passed in as an array.
 func NewHandler(baseURL, id, title, version string, functions map[string]interface{}) (http.Handler, error) {
-	var redirectURL string
+	var docsURL string
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
 	switch u.Scheme {
-	case "http", "https":
-		redirectURL = fmt.Sprintf("%s://sherpa.irias.nl/x/%s%s", u.Scheme, u.Host, u.EscapedPath())
+	case "http":
+		docsURL = fmt.Sprintf("https://sherpa.irias.nl/X/%s%s", u.Host, u.EscapedPath())
+	case "https":
+		docsURL = fmt.Sprintf("https://sherpa.irias.nl/x/%s%s", u.Host, u.EscapedPath())
 	default:
 		return nil, fmt.Errorf("Unsupported URL scheme %#v", u.Scheme)
 	}
@@ -204,14 +244,14 @@ func NewHandler(baseURL, id, title, version string, functions map[string]interfa
 	js = bytes.Replace(js, []byte("FUNCTIONS"), marshal(names), -1)
 
 	h := &handler{
-		baseURL:     baseURL,
-		id:          id,
-		title:       title,
-		functions:   functions,
-		version:     version,
-		redirectURL: redirectURL,
-		json:        xjson,
-		javascript:  js}
+		baseURL:    baseURL,
+		id:         id,
+		title:      title,
+		functions:  functions,
+		version:    version,
+		docsURL:    docsURL,
+		json:       xjson,
+		javascript: js}
 	return h, nil
 }
 
@@ -237,7 +277,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.URL.Path == "":
-		http.Redirect(w, r, h.redirectURL, 302)
+		err := htmlTemplate.Execute(w, map[string]interface{}{
+			"id":      h.id,
+			"title":   h.title,
+			"version": h.version,
+			"docsURL": h.docsURL,
+			"jsURL":   h.baseURL + "sherpa.js",
+		})
+		if err != nil {
+			log.Println(err)
+		}
 
 	case r.URL.Path == "sherpa.json":
 		switch r.Method {
