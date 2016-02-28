@@ -25,6 +25,12 @@ Use the CLI tool sherpaclient to inspect API's through the command-line:
 	$ sherpaclient -docs https://sherpa.irias.nl/exampleapi/ echo
 	...
 
+Use the CLI tool sherpadocs to generate Sherpa documentation from the comments in the Go source files.
+
+	$ sherpadocs path/to/myapi 'My API' 'goFunctionName:sherpaFunctionName,...' >myapi.json
+
+See https://bitbucket.org/mjl/sherpaweb/ with its Example API for an example.
+
 
 # Documentation
 
@@ -42,12 +48,11 @@ MIT-licensed, see LICENSE.
 
 # todo
 
-- switch to using errors as part of return values. way more natural then panic all over...
+- check if we need to set more headers, and if cors headers are correct
+- should use practically the same sherpa.js as in sherpaweb; it should be rewritten
 
 - handler: write tests
 - handler: write documentation
 - handler: run jshint on the js code in sherpajs.go
 
 - client: write tests
-
-- sherpadocs: write it, a tool that reads a go package (source code) and generates a JSON document for returning as the `_docs` function.
