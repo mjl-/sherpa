@@ -34,11 +34,11 @@ See https://bitbucket.org/mjl/sherpaweb/ with its Example API for an example.
 
 # Documentation
 
-https://godoc.org/bitbucket.org/mjl/sherpa/
+https://godoc.org/bitbucket.org/mjl/sherpa
 
 # Compiling
 
-	go get bitbucket.org/mjl/sherpa/
+	go get bitbucket.org/mjl/sherpa
 
 # About
 
