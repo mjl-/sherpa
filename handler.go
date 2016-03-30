@@ -219,15 +219,7 @@ func NewHandler(baseURL, id, title, version string, functions map[string]interfa
 		names = append(names, name)
 	}
 
-	marshal := func(v interface{}) []byte {
-		buf, err := json.Marshal(v)
-		if err != nil {
-			log.Panicf("marshal json %#v: %s", v, err)
-		}
-		return buf
-	}
-
-	xjson := marshal(map[string]interface{}{
+	xjson, err := json.Marshal(map[string]interface{}{
 		"id":            id,
 		"title":         title,
 		"functions":     names,
@@ -235,13 +227,11 @@ func NewHandler(baseURL, id, title, version string, functions map[string]interfa
 		"version":       version,
 		"sherpaVersion": SherpaVersion,
 	})
+	if err != nil {
+		log.Panicf("marshal json: %s", err)
+	}
 
-	js := sherpaJS
-	js = bytes.Replace(js, []byte("ID"), marshal(id), -1)
-	js = bytes.Replace(js, []byte("TITLE"), marshal(title), -1)
-	js = bytes.Replace(js, []byte("VERSION"), marshal(version), -1)
-	js = bytes.Replace(js, []byte("URL"), marshal(baseURL), -1)
-	js = bytes.Replace(js, []byte("FUNCTIONS"), marshal(names), -1)
+	js := bytes.Replace(sherpaJS, []byte("SHERPA_JSON"), xjson, -1)
 
 	h := &handler{
 		baseURL:    baseURL,

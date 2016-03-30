@@ -91,25 +91,20 @@ var make = function(api, name) {
 		var params = Array.prototype.slice.call(arguments, 0);
 		return api._wrapThenable(thenable(function(resolve, reject) {
 			postJSON(api._sherpa.baseurl+name, {params: params}, function(response) {
-				if(response.error) {
+				if(response && response.error) {
 					reject(response.error);
-				} else {
+				} else if(response && response.hasOwnProperty('result')) {
 					resolve(response.result);
+				} else {
+					reject({code: 'sherpaBadResponse', message: "invalid sherpa response object, missing 'result'"});
 				}
 			}, reject);
 		}));
 	};
 };
 
-var functions = FUNCTIONS;
 var api = {};
-api._sherpa = {
-	id:             ID,
-	title:          TITLE,
-	version:        VERSION,
-	sherpaVersion:  0,
-	baseurl:        URL,
-	functions:      functions};
+api._sherpa = SHERPA_JSON;
 
 api._wrapThenable = function(thenable) {
 	return thenable;
@@ -119,12 +114,12 @@ api._call = function(name) {
 	return make(api, name).apply(Array.prototype.slice.call(arguments, 1));
 };
 
-for(var i = 0; i < functions.length; i++) {
-	var fn = functions[i];
+for(var i = 0; i < api._sherpa.functions.length; i++) {
+	var fn = api._sherpa.functions[i];
 	api[fn] = make(api, fn);
 }
 
-window[ID] = api;
+window[api._sherpa.id] = api;
 
 })();
 `)
