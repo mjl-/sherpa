@@ -99,7 +99,21 @@ func respond(w http.ResponseWriter, status int, r *response) {
 // - slice of values, if fn had multiple return values
 //
 // on error, we always return an Error with the Code field set.
-func call(fn interface{}, r io.Reader) (interface{}, *Error) {
+func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			return
+		}
+
+		se, ok := e.(*Error)
+		if ok {
+			ee = se
+			return
+		}
+		panic(se)
+	}()
+
 	var request struct {
 		Params json.RawMessage `json:"params"`
 	}
