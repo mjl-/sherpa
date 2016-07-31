@@ -41,7 +41,7 @@ func (e *Error) Error() string {
 
 // Sherpa API response type
 type response struct {
-	Result interface{} `json:"result,omitempty"`
+	Result interface{} `json:"result"`
 	Error  *Error      `json:"error,omitempty"`
 }
 
@@ -180,7 +180,10 @@ func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
 	}
 	rr, rerr := rr[:len(rr)-1], rr[len(rr)-1]
 	var rv interface{} = rr
-	if len(rr) == 1 {
+	switch len(rr) {
+	case 0:
+		rv = nil
+	case 1:
 		rv = rr[0]
 	}
 	if rerr == nil {
