@@ -33,6 +33,28 @@ func fail(s string) {
 	os.Exit(1)
 }
 
+func parseFunc(fn *doc.Func, functions map[string]string, docs *sherpa.Docs) {
+	text := strings.Trim(fn.Doc, "\r\n")
+	lines := strings.Split(text, "\n")
+	var sherpaFn string
+	if len(lines) > 0 {
+		s := strings.Trim(lines[len(lines)-1], " \t\r\n")
+		if strings.HasPrefix(s, "sherpa:") {
+			sherpaFn = s[len("sherpa:"):]
+			sherpaFn = strings.Trim(sherpaFn, " \t\r\n")
+			text = strings.Join(lines[:len(lines)-1], "\n")
+		}
+	}
+	name, ok := functions[fn.Name]
+	if !ok && sherpaFn != "" {
+		name = sherpaFn
+	}
+	if name != "" {
+		fd := &sherpa.FunctionDocs{Name: name, Text: text}
+		docs.Functions = append(docs.Functions, fd)
+	}
+}
+
 func makeDocs(path string, functions map[string]string) (*sherpa.Docs, error) {
 	fset := token.NewFileSet()
 	pkgs, first := parser.ParseDir(fset, path, nil, parser.ParseComments)
@@ -48,25 +70,15 @@ func makeDocs(path string, functions map[string]string) (*sherpa.Docs, error) {
 		docpkg := doc.New(pkg, "", 0)
 		docs.Title = docpkg.Name
 		docs.Text = strings.Trim(docpkg.Doc, "\r\n")
+
 		for _, fn := range docpkg.Funcs {
-			text := strings.Trim(fn.Doc, "\r\n")
-			lines := strings.Split(text, "\n")
-			var sherpaFn string
-			if len(lines) > 0 {
-				s := strings.Trim(lines[len(lines)-1], " \t\r\n")
-				if strings.HasPrefix(s, "sherpa:") {
-					sherpaFn = s[len("sherpa:"):]
-					sherpaFn = strings.Trim(sherpaFn, " \t\r\n")
-					text = strings.Join(lines[:len(lines)-1], "\n")
-				}
-			}
-			name, ok := functions[fn.Name]
-			if !ok && sherpaFn != "" {
-				name = sherpaFn
-			}
-			if name != "" {
-				fd := &sherpa.FunctionDocs{Name: name, Text: text}
-				docs.Functions = append(docs.Functions, fd)
+			parseFunc(fn, functions, docs)
+		}
+
+		// functions that return a type defined in the same file are in that type's .Funcs
+		for _, typ := range docpkg.Types {
+			for _, fn := range typ.Funcs {
+				parseFunc(fn, functions, docs)
 			}
 		}
 	}
