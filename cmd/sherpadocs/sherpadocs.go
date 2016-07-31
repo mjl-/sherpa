@@ -67,7 +67,7 @@ func makeDocs(path string, functions map[string]string) (*sherpa.Docs, error) {
 	}
 
 	for _, pkg := range pkgs {
-		docpkg := doc.New(pkg, "", 0)
+		docpkg := doc.New(pkg, "", doc.AllDecls)
 		docs.Title = docpkg.Name
 		docs.Text = strings.Trim(docpkg.Doc, "\r\n")
 
