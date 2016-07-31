@@ -9,7 +9,6 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 )
@@ -231,19 +230,7 @@ func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
 //
 // Variadic functions can be called, but in the call (from the client), the variadic parameter must be passed in as an array.
 func NewHandler(baseURL, id, title, version string, functions map[string]interface{}) (http.Handler, error) {
-	var docsURL string
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return nil, err
-	}
-	switch u.Scheme {
-	case "http":
-		docsURL = fmt.Sprintf("https://sherpa.irias.nl/X/%s%s", u.Host, u.EscapedPath())
-	case "https":
-		docsURL = fmt.Sprintf("https://sherpa.irias.nl/x/%s%s", u.Host, u.EscapedPath())
-	default:
-		return nil, fmt.Errorf("Unsupported URL scheme %#v", u.Scheme)
-	}
+	docsURL := "https://sherpa.irias.nl/#" + baseURL
 
 	names := make([]string, 0, len(functions))
 	for name, fn := range functions {
