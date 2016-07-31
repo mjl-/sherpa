@@ -363,6 +363,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(204)
 
 		case "POST":
+			hdr.Set("Cache-Control", "no-store")
+
 			respond := respondJson
 
 			if !ok {
@@ -400,6 +402,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 		case "GET":
+			hdr.Set("Cache-Control", "no-store")
+
 			respond := respondJson
 			if !ok {
 				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
