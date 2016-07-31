@@ -8,7 +8,7 @@
 // All packages after the first will be a subsection of the first package.
 // The package documentation will be the main body of sherpa documentation.
 // The mapping of go functions to sherpa functions can be empty. If the last line of documentation for
-// a Go function starts with "sherpa: ", the function name following it will be added to the generated documentation.
+// a Go function starts with "sherpa:", the function name following it will be added to the generated documentation.
 //
 // For example:
 //
@@ -115,7 +115,11 @@ func main() {
 		}
 	}
 
-	err := json.NewEncoder(os.Stdout).Encode(rootDocs)
+	buf, err := json.MarshalIndent(rootDocs, "", "\t")
+	if err != nil {
+		fail(err.Error())
+	}
+	_, err = os.Stdout.Write(buf)
 	if err != nil {
 		fail(err.Error())
 	}
