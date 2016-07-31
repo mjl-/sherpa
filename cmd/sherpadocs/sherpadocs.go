@@ -132,6 +132,9 @@ func main() {
 		fail(err.Error())
 	}
 	_, err = os.Stdout.Write(buf)
+	if err == nil {
+		_, err = fmt.Println()
+	}
 	if err != nil {
 		fail(err.Error())
 	}
