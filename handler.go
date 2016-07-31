@@ -7,9 +7,11 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 )
 
 // Sherpa version this package implements. Note that Sherpa is at version 0 and still in development and will probably change.
@@ -83,13 +85,24 @@ a { color: #327CCB; }
 	}
 }
 
-func respond(w http.ResponseWriter, status int, r *response) {
+func respondJson(w http.ResponseWriter, status int, r *response, _ string) {
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	err := json.NewEncoder(w).Encode(r)
 	if err != nil {
 		log.Println("error writing json response:", err)
 	}
+}
+
+func respondJsonp(w http.ResponseWriter, status int, r *response, callback string) {
+	w.Header().Add("Content-Type", "text/javascript; charset=utf-8")
+	w.WriteHeader(status)
+	fmt.Fprintf(w, "%s(\n\t", callback)
+	err := json.NewEncoder(w).Encode(r)
+	if err != nil {
+		log.Println("error writing json response:", err)
+	}
+	fmt.Fprint(w, ");")
 }
 
 // call function fn with a json body read from r.
@@ -266,6 +279,22 @@ func badMethod(w http.ResponseWriter) {
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }
 
+// return whether callback js snippet is valid.
+// this is a coarse test.  we disallow some valid js identifiers, like "\u03c0",
+// and we allow many invalid ones, such as js keywords, "0intro" and identifiers starting/ending with ".", or having multiple dots.
+func validCallback(cb string) bool {
+	if cb == "" {
+		return false
+	}
+	for _, c := range cb {
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '$' || c == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // Serve a HTTP request for this Sherpa API.
 // ServeHTTP expects the request path is stripped from the path it was mounted at with the http package.
 //
@@ -330,23 +359,78 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(204)
 
 		case "POST":
-			// xxx check file upload
+			respond := respondJson
 
 			if !ok {
-				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %v does not exist", name)}})
+				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
+				return
+			}
+
+			// xxx check file upload?
+
+			ct := r.Header.Get("Content-Type")
+			if ct == "" {
+				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("missing content-type")}}, "")
+				return
+			}
+			mt, mtparams, err := mime.ParseMediaType(ct)
+			if err != nil {
+				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("invalid content-type %q", ct)}}, "")
+				return
+			}
+			if mt != "application/json" {
+				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unrecognized content-type %q, expecting "application/json"`, mt)}}, "")
+				return
+			}
+			charset, ok := mtparams["charset"]
+			if ok && strings.ToLower(charset) != "utf-8" {
+				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unexpected charset %q, expecting "utf-8"`, charset)}}, "")
 				return
 			}
 
 			r, xerr := call(fn, r.Body)
 			if xerr != nil {
-				respond(w, 200, &response{Error: xerr})
+				respond(w, 200, &response{Error: xerr}, "")
 			} else {
-				respond(w, 200, &response{Result: r})
+				respond(w, 200, &response{Result: r}, "")
 			}
 
 		case "GET":
-			badMethod(w)
-			// xxx parse params, call function, return jsonp
+			respond := respondJson
+			if !ok {
+				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
+				return
+			}
+
+			err := r.ParseForm()
+			if err != nil {
+				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("could not parse query string")}}, "")
+				return
+			}
+
+			callback := r.Form.Get("callback")
+			_, ok := r.Form["callback"]
+			if ok {
+				if !validCallback(callback) {
+					respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`invalid callback name %q`, callback)}}, "")
+					return
+				}
+				respond = respondJsonp
+			}
+
+			// we allow an empty list to be missing to make it cleaner & easier to call health check functions (no ugly urls)
+			body := r.Form.Get("body")
+			_, ok = r.Form["body"]
+			if !ok {
+				body = `{"params": []}`
+			}
+
+			r, xerr := call(fn, strings.NewReader(body))
+			if xerr != nil {
+				respond(w, 200, &response{Error: xerr}, callback)
+			} else {
+				respond(w, 200, &response{Result: r}, callback)
+			}
 
 		default:
 			badMethod(w)
