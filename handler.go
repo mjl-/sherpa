@@ -97,12 +97,16 @@ func respondJson(w http.ResponseWriter, status int, r *response, _ string) {
 func respondJsonp(w http.ResponseWriter, status int, r *response, callback string) {
 	w.Header().Add("Content-Type", "text/javascript; charset=utf-8")
 	w.WriteHeader(status)
-	fmt.Fprintf(w, "%s(\n\t", callback)
-	err := json.NewEncoder(w).Encode(r)
+	_, err := fmt.Fprintf(w, "%s(\n\t", callback)
+	if err == nil {
+		err = json.NewEncoder(w).Encode(r)
+	}
+	if err == nil {
+		_, err = fmt.Fprint(w, ");")
+	}
 	if err != nil {
 		log.Println("error writing json response:", err)
 	}
-	fmt.Fprint(w, ");")
 }
 
 // call function fn with a json body read from r.
