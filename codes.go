@@ -9,7 +9,7 @@ const (
 const (
 	SherpaClientError = "sherpaClientError" // error from client library when calling an API function
 	SherpaBadResponse = "sherpaBadResponse" // bad response from server, e.g. JSON response body could not be parsed
-	SherpaHttpError   = "sherpaHttpError"   // unexpect http response status code from server
+	SherpaHttpError   = "sherpaHttpError"   // unexpected http response status code from server
 	SherpaNoAPI       = "sherpaNoAPI"       // no API was found at this URL
 )
 
