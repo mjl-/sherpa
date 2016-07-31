@@ -49,7 +49,11 @@ MIT-licensed, see LICENSE.
 # todo
 
 - check if we need to set more headers, and if cors headers are correct
-- should use practically the same sherpa.js as in sherpaweb; it should be rewritten
+- allow more fields in error response objects?
+- more strict with incoming parameters: error for unrecognized field in objects
+- sherpadocs: attempt to automatically generate the synopsis line?
+- sherpadocs: investigate if struct definitions can be used in docs
+- say something about variadic parameters
 
 - handler: write tests
 - handler: write documentation
