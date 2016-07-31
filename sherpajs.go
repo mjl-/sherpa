@@ -1,13 +1,16 @@
 package sherpa
 
 var sherpaJS = []byte(`
-(function(undefined) {
 'use strict';
+
+(function(undefined) {
+
+var sherpa = {};
 
 // prepare basic support for promises.
 // we return functions with a "then" method only. our "then" isn't chainable. and you don't get other promise-related methods.
 // but this "then" is enough so your browser's promise library (or a polyfill) can turn it into a real promise.
-var thenable = function(fn) {
+function thenable(fn) {
 	var settled = false;
 	var fulfilled = false;
 	var result = null;
@@ -35,16 +38,16 @@ var thenable = function(fn) {
 	};
 	nfn.then = nfn;
 
-	var done = function() {
+	function done() {
 		while(fulfilled && goods.length > 0) {
 			goods.shift()(result);
 		}
 		while(!fulfilled && bads.length > 0) {
 			bads.shift()(result);
 		}
-	};
+	}
 
-	var makeSettle = function(xfulfilled) {
+	function makeSettle(xfulfilled) {
 		return function(arg) {
 			if(settled) {
 				return;
@@ -54,7 +57,7 @@ var thenable = function(fn) {
 			result = arg;
 			done();
 		};
-	};
+	}
 	var resolve = makeSettle(true);
 	var reject = makeSettle(false);
 	try {
@@ -63,12 +66,12 @@ var thenable = function(fn) {
 		reject(e);
 	}
 	return nfn;
-};
+}
 
-var postJSON = function(url, param, success, error) {
-	var req = new XMLHttpRequest();
+function postJSON(url, param, success, error) {
+	var req = new window.XMLHttpRequest();
 	req.open('POST', url, true);
-	req.onload = function() {
+	req.onload = function onload() {
 		if(req.status >= 200 && req.status < 400) {
 			success(JSON.parse(req.responseText));
 		} else {
@@ -79,14 +82,14 @@ var postJSON = function(url, param, success, error) {
 			}
 		}
 	};
-	req.onerror = function() {
+	req.onerror = function onerror() {
 		error({code: 'sherpaClientError', message: 'connection failed'});
 	};
 	req.setRequestHeader('Content-Type', 'application/json');
 	req.send(JSON.stringify(param));
-};
+}
 
-var make = function(api, name) {
+function makeFunction(api, name) {
 	return function() {
 		var params = Array.prototype.slice.call(arguments, 0);
 		return api._wrapThenable(thenable(function(resolve, reject) {
@@ -101,25 +104,33 @@ var make = function(api, name) {
 			}, reject);
 		}));
 	};
-};
-
-var api = {};
-api._sherpa = SHERPA_JSON;
-
-api._wrapThenable = function(thenable) {
-	return thenable;
-};
-
-api._call = function(name) {
-	return make(api, name).apply(Array.prototype.slice.call(arguments, 1));
-};
-
-for(var i = 0; i < api._sherpa.functions.length; i++) {
-	var fn = api._sherpa.functions[i];
-	api[fn] = make(api, fn);
 }
 
-window[api._sherpa.id] = api;
+sherpa.init = function init(_sherpa) {
+	var api = {};
+
+	function _wrapThenable(thenable) {
+		return thenable;
+	}
+
+	function _call(name) {
+		return makeFunction(api, name).apply(Array.prototype.slice.call(arguments, 1));
+	}
+
+	api._sherpa = _sherpa;
+	api._wrapThenable = _wrapThenable;
+	api._call = _call;
+	for(var i = 0; i < _sherpa.functions.length; i++) {
+		var fn = _sherpa.functions[i];
+		api[fn] = makeFunction(api, fn);
+	}
+
+	return api;
+};
+
+
+var _sherpa = SHERPA_JSON;
+window[_sherpa.id] = sherpa.init(_sherpa);
 
 })();
 `)
