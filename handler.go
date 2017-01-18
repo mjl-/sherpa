@@ -1,7 +1,6 @@
 package sherpa
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -16,16 +15,20 @@ import (
 // Sherpa version this package implements. Note that Sherpa is at version 0 and still in development and will probably change.
 const SherpaVersion = 0
 
+type SherpaJSON struct {
+	Id            string   `json:"id"`
+	Title         string   `json:"title"`
+	Functions     []string `json:"functions"`
+	BaseURL       string   `json:"baseurl"`
+	Version       string   `json:"version"`
+	SherpaVersion int      `json:"sherpaVersion"`
+}
+
 // handler that responds to all Sherpa-related requests.
 type handler struct {
-	baseURL    string
-	id         string
-	title      string
-	version    string
+	path       string
 	functions  map[string]interface{}
-	docsURL    string
-	json       []byte
-	javascript []byte
+	sherpaJson *SherpaJSON
 }
 
 // Sherpa API error object.
@@ -82,6 +85,18 @@ a { color: #327CCB; }
 	if err != nil {
 		panic(err)
 	}
+}
+
+func getBaseURL(r *http.Request) string {
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	scheme := r.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = "http"
+	}
+	return scheme + "://" + host
 }
 
 func respondJson(w http.ResponseWriter, status int, r *response, _ string) {
@@ -217,7 +232,7 @@ func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
 
 // NewHandler returns a new http.Handler that serves all Sherpa API-related requests.
 //
-// baseURL must be the URL this API is available at.
+// path is the path this API is available at.
 // id is the variable name for the API object the JavaScript client library.
 // title should be a human-readable name of the API.
 // functions are the functions you want to make available through this handler.
@@ -229,9 +244,7 @@ func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
 // Functions can also panic with an *Error to indicate a failed function call.
 //
 // Variadic functions can be called, but in the call (from the client), the variadic parameter must be passed in as an array.
-func NewHandler(baseURL, id, title, version string, functions map[string]interface{}) (http.Handler, error) {
-	docsURL := "https://sherpa.irias.nl/#" + baseURL
-
+func NewHandler(path, id, title, version string, functions map[string]interface{}) (http.Handler, error) {
 	names := make([]string, 0, len(functions))
 	for name, fn := range functions {
 		if reflect.TypeOf(fn).Kind() != reflect.Func {
@@ -240,29 +253,19 @@ func NewHandler(baseURL, id, title, version string, functions map[string]interfa
 		names = append(names, name)
 	}
 
-	xjson, err := json.Marshal(map[string]interface{}{
-		"id":            id,
-		"title":         title,
-		"functions":     names,
-		"baseurl":       baseURL,
-		"version":       version,
-		"sherpaVersion": SherpaVersion,
-	})
-	if err != nil {
-		log.Panicf("marshal json: %s", err)
+	sherpaJson := &SherpaJSON{
+		Id:            id,
+		Title:         title,
+		Functions:     names,
+		BaseURL:       "", // filled in during request
+		Version:       version,
+		SherpaVersion: SherpaVersion,
 	}
-
-	js := bytes.Replace(sherpaJS, []byte("SHERPA_JSON"), xjson, -1)
-
 	h := &handler{
-		baseURL:    baseURL,
-		id:         id,
-		title:      title,
+		path:       path,
 		functions:  functions,
-		version:    version,
-		docsURL:    docsURL,
-		json:       xjson,
-		javascript: js}
+		sherpaJson: sherpaJson,
+	}
 	return h, nil
 }
 
@@ -304,12 +307,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.URL.Path == "":
+		baseURL := getBaseURL(r) + h.path
+		docsURL := "https://sherpa.irias.nl/#" + baseURL
 		err := htmlTemplate.Execute(w, map[string]interface{}{
-			"id":      h.id,
-			"title":   h.title,
-			"version": h.version,
-			"docsURL": h.docsURL,
-			"jsURL":   h.baseURL + "sherpa.js",
+			"id":      h.sherpaJson.Id,
+			"title":   h.sherpaJson.Title,
+			"version": h.sherpaJson.Version,
+			"docsURL": docsURL,
+			"jsURL":   baseURL + "sherpa.js",
 		})
 		if err != nil {
 			log.Println(err)
@@ -322,7 +327,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "GET":
 			hdr.Set("Content-Type", "application/json; charset=utf-8")
 			hdr.Set("Cache-Control", "no-cache")
-			_, err := w.Write(h.json)
+			sherpaJson := &*h.sherpaJson
+			sherpaJson.BaseURL = getBaseURL(r) + h.path
+			err := json.NewEncoder(w).Encode(sherpaJson)
 			if err != nil {
 				log.Println("writing sherpa.json response:", err)
 			}
@@ -337,7 +344,11 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		hdr.Set("Content-Type", "text/javascript; charset=utf-8")
 		hdr.Set("Cache-Control", "no-cache")
-		_, err := w.Write(h.javascript)
+		sherpaJson := &*h.sherpaJson
+		sherpaJson.BaseURL = getBaseURL(r) + h.path
+		buf, err := json.Marshal(sherpaJson)
+		js := strings.Replace(sherpaJS, "{{.sherpaJSON}}", string(buf), -1)
+		_, err = w.Write([]byte(js))
 		if err != nil {
 			log.Println("writing sherpa.js response:", err)
 		}
