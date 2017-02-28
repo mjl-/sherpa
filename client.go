@@ -50,7 +50,9 @@ func NewClient(url string, functions []string) (*Client, error) {
 }
 
 // Call an API function by name.
-func (c *Client) Call(result interface{}, functionName string, params ...interface{}) *Error {
+//
+// If error is not null, it's of type Error.
+func (c *Client) Call(result interface{}, functionName string, params ...interface{}) error {
 	req := map[string]interface{}{
 		"params": params,
 	}
