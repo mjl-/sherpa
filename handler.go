@@ -43,6 +43,21 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
+// Error object that should propagate as internal server error (HTTP status 500).
+// Useful for making Sherpa endpoints that can be monitored by simple HTTP monitoring tools.
+type InternalServerError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (e *InternalServerError) Error() string {
+	return e.Message
+}
+
+func (e *InternalServerError) error() *Error {
+	return &Error{"internalServerError", e.Message}
+}
+
 // Sherpa API response type
 type response struct {
 	Result interface{} `json:"result"`
@@ -130,7 +145,7 @@ func respondJsonp(w http.ResponseWriter, status int, r *response, callback strin
 // - slice of values, if fn had multiple return values
 //
 // on error, we always return an Error with the Code field set.
-func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
+func call(fn interface{}, r io.Reader) (ret interface{}, ee error) {
 	defer func() {
 		e := recover()
 		if e == nil {
@@ -140,6 +155,11 @@ func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
 		se, ok := e.(*Error)
 		if ok {
 			ee = se
+			return
+		}
+		ierr, ok := e.(*InternalServerError)
+		if ok {
+			ee = ierr
 			return
 		}
 		panic(se)
@@ -222,6 +242,8 @@ func call(fn interface{}, r io.Reader) (ret interface{}, ee *Error) {
 	}
 	switch r := rerr.(type) {
 	case *Error:
+		return nil, r
+	case *InternalServerError:
 		return nil, r
 	case error:
 		return nil, &Error{Message: r.Error()}
@@ -394,7 +416,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			r, xerr := call(fn, r.Body)
 			if xerr != nil {
-				respond(w, 200, &response{Error: xerr}, "")
+				switch err := xerr.(type) {
+				case *InternalServerError:
+					respond(w, 500, &response{Error: err.error()}, "")
+				case *Error:
+					respond(w, 200, &response{Error: err}, "")
+				default:
+					panic(err)
+				}
 			} else {
 				respond(w, 200, &response{Result: r}, "")
 			}
@@ -433,7 +462,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			r, xerr := call(fn, strings.NewReader(body))
 			if xerr != nil {
-				respond(w, 200, &response{Error: xerr}, callback)
+				switch err := xerr.(type) {
+				case *InternalServerError:
+					respond(w, 500, &response{Error: err.error()}, callback)
+				case *Error:
+					respond(w, 200, &response{Error: err}, callback)
+				default:
+					panic(err)
+				}
 			} else {
 				respond(w, 200, &response{Result: r}, callback)
 			}
