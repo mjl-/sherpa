@@ -255,18 +255,19 @@ func call(fn interface{}, r io.Reader) (ret interface{}, ee error) {
 // NewHandler returns a new http.Handler that serves all Sherpa API-related requests.
 //
 // path is the path this API is available at.
-// id is the variable name for the API object the JavaScript client library.
-// title should be a human-readable name of the API.
+// title should be a human-readable name of the API; if empty, a title is made of the last element from path.
+// version should be an x.y.z string.
 // functions are the functions you want to make available through this handler.
 //
-// This handler expects to be called with any path elements stripped using http.StripPrefix.
+// This handler strips "path" from the request.
 //
-// If the last return value (if any) is an error (i.e. has an "Error() string"-function,
+// Parameters and return values for exported functions are automatically converted from/to JSON.
+// If the last element of a return value (if any) is an error (i.e. has an "Error() string"-function),
 // that error field is taken to indicate whether the call succeeded.
-// Functions can also panic with an *Error to indicate a failed function call.
+// Exported functions can also panic with an *Error to indicate a failed function call.
 //
 // Variadic functions can be called, but in the call (from the client), the variadic parameter must be passed in as an array.
-func NewHandler(path, id, title, version string, functions map[string]interface{}) (http.Handler, error) {
+func NewHandler(path, title, version string, functions map[string]interface{}) (http.Handler, error) {
 	names := make([]string, 0, len(functions))
 	for name, fn := range functions {
 		if reflect.TypeOf(fn).Kind() != reflect.Func {
@@ -275,6 +276,11 @@ func NewHandler(path, id, title, version string, functions map[string]interface{
 		names = append(names, name)
 	}
 
+	elems := strings.Split(strings.Trim(path, "/"), "/")
+	id := elems[len(elems)-1]
+	if title == "" {
+		title = strings.Title(id) + " API"
+	}
 	sherpaJson := &SherpaJSON{
 		Id:            id,
 		Title:         title,
@@ -283,11 +289,11 @@ func NewHandler(path, id, title, version string, functions map[string]interface{
 		Version:       version,
 		SherpaVersion: SherpaVersion,
 	}
-	h := &handler{
+	h := http.StripPrefix(path, &handler{
 		path:       path,
 		functions:  functions,
 		sherpaJson: sherpaJson,
-	}
+	})
 	return h, nil
 }
 
