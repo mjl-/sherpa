@@ -6,13 +6,18 @@ Example:
 	sherpadoc Awesome >awesome.json
 
 Sherpadoc parses the Go code, finds the type (a struct) "Awesome", and gathers documentation:
-- Comments above the struct are used as section documentation.  Fields in section structs cause the referenced section struct to be included in the generated documentation as well. Set the name of the (sub)section using a struct tag "sherpa", for example `sherpa:"Another Awesome API"`.
-- Comments above method names are function documentation. A synopsis is automatically generated.
-- Types used as parameters or return values are added to the section documentation where they are used. The comments above the type are used, as well as the comments for each field in a struct.  The documented field names know about the "json" struct field tags.
 
-Flags:
--title, title of the generated API; if empty, the name of the Go type passed as first parameter is used
--package, which package to parse source for, defaults to "."
+Comments above the struct are used as section documentation.  Fields in section structs cause the referenced section struct to be included in the generated documentation as well. Set the name of the (sub)section using a struct tag "sherpa", for example `sherpa:"Another Awesome API"`.
+
+Comments above method names are function documentation. A synopsis is automatically generated.
+
+Types used as parameters or return values are added to the section documentation where they are used. The comments above the type are used, as well as the comments for each field in a struct.  The documented field names know about the "json" struct field tags.
+
+	Usage: sherpadoc main-section-api-type
+	  -package-path string
+		of source code to parse (default ".")
+	  -title string
+		title of the API, default is the name of the type of the main API
 */
 package main
 

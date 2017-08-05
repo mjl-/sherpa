@@ -11,9 +11,11 @@ Example:
 
 The parameters to a function must be valid JSON. Don't forget to quote the double quotes of your JSON strings!
 
-Flags:
--doc, instead of calling a function, print documentation for the entire API (if no parameters) or the specified function
--info, show the API descriptor
+	Usage: sherpaclient [options] baseURL function [param ...]
+	  -doc
+		show documentation for all functions or single function if specified
+	  -info
+		show the API descriptor
 */
 package main
 
