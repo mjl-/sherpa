@@ -87,7 +87,7 @@ func parseSection(t *doc.Type, pkg *doc.Package) *Section {
 	return section
 }
 
-func gatherFieldType(f *Field, e ast.Expr, section *Section) string {
+func gatherFieldType(typeName string, f *Field, e ast.Expr, section *Section) string {
 	switch t := e.(type) {
 	case *ast.Ident:
 		tt := lookupType(section.Pkg, t.Name)
@@ -96,9 +96,9 @@ func gatherFieldType(f *Field, e ast.Expr, section *Section) string {
 		}
 		return t.Name
 	case *ast.ArrayType:
-		return "[]" + gatherFieldType(f, t.Elt, section)
+		return "[]" + gatherFieldType(typeName, f, t.Elt, section)
 	case *ast.MapType:
-		return fmt.Sprintf("map[%s]%s", gatherFieldType(f, t.Key, section), gatherFieldType(f, t.Value, section))
+		return fmt.Sprintf("map[%s]%s", gatherFieldType(typeName, f, t.Key, section), gatherFieldType(typeName, f, t.Value, section))
 	case *ast.StructType:
 		for _, ft := range t.Fields.List {
 			name := nameList(ft.Names, ft.Tag)
@@ -111,7 +111,7 @@ func gatherFieldType(f *Field, e ast.Expr, section *Section) string {
 				fieldDoc(ft),
 				[]*Field{},
 			}
-			subf.Type = gatherFieldType(subf, ft.Type, section)
+			subf.Type = gatherFieldType(typeName, subf, ft.Type, section)
 			f.Fields = append(f.Fields, subf)
 		}
 		return "object"
@@ -121,9 +121,12 @@ func gatherFieldType(f *Field, e ast.Expr, section *Section) string {
 		}
 		return "?"
 	case *ast.StarExpr:
-		return "*" + gatherFieldType(f, t.X, section)
+		return "*" + gatherFieldType(typeName, f, t.X, section)
+	case *ast.SelectorExpr:
+		// we don't cross package boundaries for docs, eg time.Time
+		return t.Sel.Name
 	}
-	log.Fatalf("unsupported type in struct: %T", e)
+	log.Fatalf("unsupported type in struct %s, field %s: %T", e)
 	return ""
 }
 
@@ -146,6 +149,7 @@ func ensureNamedType(t *doc.Type, section *Section) {
 	if _, have := section.Typeset[t.Name]; have {
 		return
 	}
+
 	tt := &Type{
 		t.Name,
 		cleanText(t.Doc),
@@ -172,7 +176,7 @@ func ensureNamedType(t *doc.Type, section *Section) {
 			fieldDoc(field),
 			[]*Field{},
 		}
-		f.Type = gatherFieldType(f, field.Type, section)
+		f.Type = gatherFieldType(t.Name, f, field.Type, section)
 		tt.Fields = append(tt.Fields, f)
 	}
 }
@@ -247,6 +251,9 @@ func parseArgType(e ast.Expr, section *Section) string {
 		return "?"
 	case *ast.StarExpr:
 		return "*" + parseArgType(t.X, section)
+	case *ast.SelectorExpr:
+		// we don't cross package boundaries for docs, eg time.Time
+		return t.Sel.Name
 	}
 	log.Fatalf("unsupported param/return type %T\n", e)
 	return ""
