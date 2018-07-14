@@ -108,7 +108,7 @@ func info(url string) {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("Id: %s\n", c.Id)
+	fmt.Printf("ID: %s\n", c.ID)
 	fmt.Printf("Title: %s\n", c.Title)
 	fmt.Printf("Version: %s\n", c.Version)
 	fmt.Printf("BaseURL: %s\n", c.BaseURL)
