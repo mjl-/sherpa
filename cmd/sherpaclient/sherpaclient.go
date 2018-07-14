@@ -35,6 +35,7 @@ var (
 )
 
 func main() {
+	log.SetFlags(0)
 	log.SetPrefix("sherpaclient: ")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: sherpaclient [options] baseURL function [param ...]\n")

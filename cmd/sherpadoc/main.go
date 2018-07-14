@@ -77,6 +77,7 @@ func check(err error, action string) {
 }
 
 func main() {
+	log.SetFlags(0)
 	log.SetPrefix("sherpadoc: ")
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: sherpadoc main-section-api-type")
