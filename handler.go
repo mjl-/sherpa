@@ -131,8 +131,8 @@ func respondJSON(w http.ResponseWriter, status int, r *response, _ string) {
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	err := json.NewEncoder(w).Encode(r)
-	if err != nil {
-		log.Println("error writing json response:", err)
+	if err != nil && !isConnectionClosed(err) {
+		log.Println("writing json response:", err)
 	}
 }
 
@@ -146,7 +146,7 @@ func respondJSONP(w http.ResponseWriter, status int, r *response, callback strin
 	if err == nil {
 		_, err = fmt.Fprint(w, ");")
 	}
-	if err != nil {
+	if err != nil && isConnectionClosed(err) {
 		log.Println("error writing json response:", err)
 	}
 }
