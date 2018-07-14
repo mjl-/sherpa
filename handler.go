@@ -155,7 +155,7 @@ func respondJsonp(w http.ResponseWriter, status int, r *response, callback strin
 // - slice of values, if fn had multiple return values
 //
 // on error, we always return an Error with the Code field set.
-func call(fn reflect.Value, r io.Reader) (ret interface{}, ee error) {
+func call(functionName string, fn reflect.Value, r io.Reader) (ret interface{}, ee error) {
 	defer func() {
 		e := recover()
 		if e == nil {
@@ -175,33 +175,36 @@ func call(fn reflect.Value, r io.Reader) (ret interface{}, ee error) {
 		panic(se)
 	}()
 
+	lcheck := func(err error, code, message string) {
+		if err != nil {
+			panic(&Error{Code: code, Message: fmt.Sprintf("function %q: %s: %s", functionName, message, err)})
+		}
+	}
+
 	var request struct {
 		Params json.RawMessage `json:"params"`
 	}
 
 	err := json.NewDecoder(r).Decode(&request)
-	if err != nil {
-		return nil, &Error{Code: SherpaBadRequest, Message: "invalid JSON request body: " + err.Error()}
-	}
+	lcheck(err, SherpaBadRequest, "invalid JSON request body")
 
 	fnt := fn.Type()
 
 	var params []interface{}
 	err = json.Unmarshal(request.Params, &params)
-	if err != nil {
-		return nil, &Error{Code: SherpaBadRequest, Message: "invalid JSON request body: " + err.Error()}
-	}
+	lcheck(err, SherpaBadRequest, "invalid JSON request body")
 
 	need := fnt.NumIn()
 	if fnt.IsVariadic() {
 		if len(params) != need-1 && len(params) != need {
-			return nil, &Error{Code: SherpaBadParams, Message: fmt.Sprintf("bad number of parameters, got %d, want %d or %d", len(params), need-1, need)}
+			err = fmt.Errorf("got %d, want %d or %d", len(params), need-1, need)
 		}
 	} else {
 		if len(params) != need {
-			return nil, &Error{Code: SherpaBadParams, Message: fmt.Sprintf("bad number of parameters, got %d, want %d", len(params), need)}
+			err = fmt.Errorf("got %d, want %d", len(params), need)
 		}
 	}
+	lcheck(err, SherpaBadParams, "bad number of parameters")
 
 	values := make([]reflect.Value, fnt.NumIn())
 	args := make([]interface{}, fnt.NumIn())
@@ -212,9 +215,7 @@ func call(fn reflect.Value, r io.Reader) (ret interface{}, ee error) {
 	}
 
 	err = json.Unmarshal(request.Params, &args)
-	if err != nil {
-		return nil, &Error{Code: SherpaBadParams, Message: fmt.Sprintf("could not parse parameters: " + err.Error())}
-	}
+	lcheck(err, SherpaBadParams, "parsing parameters")
 
 	errorType := reflect.TypeOf((*error)(nil)).Elem()
 	checkError := fnt.NumOut() > 0 && fnt.Out(fnt.NumOut()-1).Implements(errorType)
@@ -491,7 +492,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			t0 := time.Now()
-			r, xerr := call(fn, r.Body)
+			r, xerr := call(name, fn, r.Body)
 			duration := float64(time.Now().Sub(t0)) / float64(time.Second)
 			if xerr != nil {
 				switch err := xerr.(type) {
@@ -547,7 +548,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			t0 := time.Now()
-			r, xerr := call(fn, strings.NewReader(body))
+			r, xerr := call(name, fn, strings.NewReader(body))
 			duration := float64(time.Now().Sub(t0)) / float64(time.Second)
 			if xerr != nil {
 				switch err := xerr.(type) {
