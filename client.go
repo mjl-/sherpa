@@ -65,7 +65,7 @@ func (c *Client) Call(result interface{}, functionName string, params ...interfa
 	url := c.BaseURL + functionName
 	resp, err := http.Post(url, "application/json", buf)
 	if err != nil {
-		return &Error{Code: SherpaClientError, Message: "error sending POST request: " + err.Error()}
+		return &Error{Code: SherpaClientError, Message: "sending POST request: " + err.Error()}
 	}
 	switch resp.StatusCode {
 	case 200:
