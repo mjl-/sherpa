@@ -70,6 +70,12 @@ type Section struct {
 	Sections  []*Section
 }
 
+func check(err error, action string) {
+	if err != nil {
+		log.Fatalf("%s: %s\n", action, err)
+	}
+}
+
 func main() {
 	log.SetPrefix("sherpadoc: ")
 	flag.Usage = func() {
@@ -104,16 +110,12 @@ func main() {
 
 func writeJSON(v interface{}) {
 	buf, err := json.MarshalIndent(v, "", "\t")
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err, "marshal to json")
 	_, err = os.Stdout.Write(buf)
 	if err == nil {
 		_, err = fmt.Println()
 	}
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err, "writing json to stdout")
 }
 
 func countTypes(counts map[string]int, section *Section) {
