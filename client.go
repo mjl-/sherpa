@@ -7,18 +7,18 @@ import (
 	"net/http"
 )
 
-// Sherpa API client.
+// Client lets you call functions from an existing Sherpa API.
 // If the API was initialized with a non-nil function list, some fields will be nil (as indicated).
 type Client struct {
 	BaseURL       string   `json:"baseurl"`       // BaseURL the API is served from, e.g. https://sherpa.irias.nl/example/
 	Functions     []string `json:"functions"`     // Function names exported by the API
-	Id            string   `json:"id"`            // Short ID of the API. May be nil.
+	ID            string   `json:"id"`            // Short ID of the API. May be nil.
 	Title         string   `json:"title"`         // Human-readable name of the API. May be nil.
 	Version       string   `json:"version"`       // Version of the API, should be in the form "major.minor.patch". May be nil.
 	SherpaVersion int      `json:"sherpaVersion"` // Version of the Sherpa specification this API implements. May be nil.
 }
 
-// Make new client, for the giving URL.
+// NewClient makes a new Sherpa Client, for the given URL.
 // If "functions" is nil, the API at the URL is contacted for a function list.
 func NewClient(url string, functions []string) (*Client, error) {
 	c := &Client{BaseURL: url, Functions: functions}
@@ -91,6 +91,6 @@ func (c *Client) Call(result interface{}, functionName string, params ...interfa
 	case 404:
 		return &Error{Code: SherpaBadFunction, Message: "no such function"}
 	default:
-		return &Error{Code: SherpaHttpError, Message: "HTTP error from server: " + resp.Status}
+		return &Error{Code: SherpaHTTPError, Message: "HTTP error from server: " + resp.Status}
 	}
 }

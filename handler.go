@@ -13,11 +13,12 @@ import (
 	"time"
 )
 
-// Sherpa version this package implements. Note that Sherpa is at version 0 and still in development and will probably change.
+// SherpaVersion is the version of the Sherpa protocol this package implements. Sherpa is at version 0, still in development and may change.
 const SherpaVersion = 0
 
-type SherpaJSON struct {
-	Id            string   `json:"id"`
+// JSON holds all fields for a request to sherpa.json.
+type JSON struct {
+	ID            string   `json:"id"`
 	Title         string   `json:"title"`
 	Functions     []string `json:"functions"`
 	BaseURL       string   `json:"baseurl"`
@@ -25,23 +26,25 @@ type SherpaJSON struct {
 	SherpaVersion int      `json:"sherpaVersion"`
 }
 
+// Collector facilitates collection of metrics. Functions are called by the library as such events or errors occur.
+// See https://github.com/irias/sherpa-prometheus-collector for an implementation for prometheus.
 type Collector interface {
-	ProtocolError()
-	BadFunction()
-	JavaScript()
-	JSON()
-	FunctionCall(name string, error bool, serverError bool, duration float64)
+	ProtocolError()                                                              // When a request is invalid at protocol-levle, e.g. wrong mimetype or request body.
+	BadFunction()                                                                // When called function does not exist.
+	JavaScript()                                                                 // When sherpa.js is requested.
+	JSON()                                                                       // When sherpa.json is requested.
+	FunctionCall(name string, error bool, serverError bool, durationSec float64) // When function "name" is called, and whether that caused an "error" at all, and a "serverError" in particular, and how long the call took.
 }
 
 // handler that responds to all Sherpa-related requests.
 type handler struct {
 	path       string
 	functions  map[string]reflect.Value
-	sherpaJson *SherpaJSON
+	sherpaJSON *JSON
 	collector  Collector
 }
 
-// Sherpa API error object.
+// Error returned by a function called through a sherpa API.
 // Message is a human-readable error message.
 // Code is optional, it can be used to handle errors programmatically.
 type Error struct {
@@ -53,7 +56,7 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-// Error object that should propagate as internal server error (HTTP status 500).
+// InternalServerError is an error that propagates as an HTTP internal server error (HTTP status 500), instead of returning a regular HTTP status 200 OK with the error message in the response body.
 // Useful for making Sherpa endpoints that can be monitored by simple HTTP monitoring tools.
 type InternalServerError struct {
 	Code    string `json:"code"`
@@ -124,7 +127,7 @@ func getBaseURL(r *http.Request) string {
 	return scheme + "://" + host
 }
 
-func respondJson(w http.ResponseWriter, status int, r *response, _ string) {
+func respondJSON(w http.ResponseWriter, status int, r *response, _ string) {
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	err := json.NewEncoder(w).Encode(r)
@@ -133,7 +136,7 @@ func respondJson(w http.ResponseWriter, status int, r *response, _ string) {
 	}
 }
 
-func respondJsonp(w http.ResponseWriter, status int, r *response, callback string) {
+func respondJSONP(w http.ResponseWriter, status int, r *response, callback string) {
 	w.Header().Add("Content-Type", "text/javascript; charset=utf-8")
 	w.WriteHeader(status)
 	_, err := fmt.Fprintf(w, "%s(\n\t", callback)
@@ -322,8 +325,8 @@ func NewHandler(path string, version string, api interface{}, doc *Doc, collecto
 
 	elems := strings.Split(strings.Trim(path, "/"), "/")
 	id := elems[len(elems)-1]
-	sherpaJson := &SherpaJSON{
-		Id:            id,
+	sherpaJSON := &JSON{
+		ID:            id,
 		Title:         doc.Title,
 		Functions:     names,
 		BaseURL:       "", // filled in during request
@@ -333,7 +336,7 @@ func NewHandler(path string, version string, api interface{}, doc *Doc, collecto
 	h := http.StripPrefix(path, &handler{
 		path:       path,
 		functions:  functions,
-		sherpaJson: sherpaJson,
+		sherpaJSON: sherpaJSON,
 		collector:  collector,
 	})
 	return h, nil
@@ -387,9 +390,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	functionCall := func(name string, error bool, serverError bool, duration float64) {
+	functionCall := func(name string, error bool, serverError bool, durationSec float64) {
 		if h.collector != nil {
-			h.collector.FunctionCall(name, error, serverError, duration)
+			h.collector.FunctionCall(name, error, serverError, durationSec)
 		}
 	}
 
@@ -398,9 +401,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		baseURL := getBaseURL(r) + h.path
 		docURL := "https://sherpa.irias.nl/#" + baseURL
 		err := htmlTemplate.Execute(w, map[string]interface{}{
-			"id":      h.sherpaJson.Id,
-			"title":   h.sherpaJson.Title,
-			"version": h.sherpaJson.Version,
+			"id":      h.sherpaJSON.ID,
+			"title":   h.sherpaJSON.Title,
+			"version": h.sherpaJSON.Version,
 			"docURL":  docURL,
 			"jsURL":   baseURL + "sherpa.js",
 		})
@@ -418,9 +421,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			hdr.Set("Content-Type", "application/json; charset=utf-8")
 			hdr.Set("Cache-Control", "no-cache")
-			sherpaJson := &*h.sherpaJson
-			sherpaJson.BaseURL = getBaseURL(r) + h.path
-			err := json.NewEncoder(w).Encode(sherpaJson)
+			sherpaJSON := &*h.sherpaJSON
+			sherpaJSON.BaseURL = getBaseURL(r) + h.path
+			err := json.NewEncoder(w).Encode(sherpaJSON)
 			if err != nil {
 				log.Println("writing sherpa.json response:", err)
 			}
@@ -438,9 +441,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		hdr.Set("Content-Type", "text/javascript; charset=utf-8")
 		hdr.Set("Cache-Control", "no-cache")
-		sherpaJson := &*h.sherpaJson
-		sherpaJson.BaseURL = getBaseURL(r) + h.path
-		buf, err := json.Marshal(sherpaJson)
+		sherpaJSON := &*h.sherpaJSON
+		sherpaJSON.BaseURL = getBaseURL(r) + h.path
+		buf, err := json.Marshal(sherpaJSON)
 		js := strings.Replace(sherpaJS, "{{.sherpaJSON}}", string(buf), -1)
 		_, err = w.Write([]byte(js))
 		if err != nil {
@@ -457,7 +460,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "POST":
 			hdr.Set("Cache-Control", "no-store")
 
-			respond := respondJson
+			respond := respondJSON
 
 			if !ok {
 				badFunction()
@@ -493,29 +496,29 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			t0 := time.Now()
 			r, xerr := call(name, fn, r.Body)
-			duration := float64(time.Now().Sub(t0)) / float64(time.Second)
+			durationSec := float64(time.Now().Sub(t0)) / float64(time.Second)
 			if xerr != nil {
 				switch err := xerr.(type) {
 				case *InternalServerError:
-					functionCall(name, true, true, duration)
+					functionCall(name, true, true, durationSec)
 					respond(w, 500, &response{Error: err.error()}, "")
 				case *Error:
 					serverError := strings.HasPrefix(err.Code, "server")
-					functionCall(name, true, serverError, duration)
+					functionCall(name, true, serverError, durationSec)
 					respond(w, 200, &response{Error: err}, "")
 				default:
-					functionCall(name, true, true, duration)
+					functionCall(name, true, true, durationSec)
 					panic(err)
 				}
 			} else {
-				functionCall(name, false, false, duration)
+				functionCall(name, false, false, durationSec)
 				respond(w, 200, &response{Result: r}, "")
 			}
 
 		case "GET":
 			hdr.Set("Cache-Control", "no-store")
 
-			respond := respondJson
+			respond := respondJSON
 			if !ok {
 				badFunction()
 				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
@@ -537,7 +540,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`invalid callback name %q`, callback)}}, "")
 					return
 				}
-				respond = respondJsonp
+				respond = respondJSONP
 			}
 
 			// we allow an empty list to be missing to make it cleaner & easier to call health check functions (no ugly urls)
@@ -549,22 +552,22 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			t0 := time.Now()
 			r, xerr := call(name, fn, strings.NewReader(body))
-			duration := float64(time.Now().Sub(t0)) / float64(time.Second)
+			durationSec := float64(time.Now().Sub(t0)) / float64(time.Second)
 			if xerr != nil {
 				switch err := xerr.(type) {
 				case *InternalServerError:
-					functionCall(name, true, true, duration)
+					functionCall(name, true, true, durationSec)
 					respond(w, 500, &response{Error: err.error()}, callback)
 				case *Error:
 					serverError := strings.HasPrefix(err.Code, "server")
-					functionCall(name, true, serverError, duration)
+					functionCall(name, true, serverError, durationSec)
 					respond(w, 200, &response{Error: err}, callback)
 				default:
-					functionCall(name, true, true, duration)
+					functionCall(name, true, true, durationSec)
 					panic(err)
 				}
 			} else {
-				functionCall(name, false, false, duration)
+				functionCall(name, false, false, durationSec)
 				respond(w, 200, &response{Result: r}, callback)
 			}
 
