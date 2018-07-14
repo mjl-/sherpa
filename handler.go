@@ -378,19 +378,19 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hdr.Set("Access-Control-Allow-Methods", "GET, POST")
 	hdr.Set("Access-Control-Allow-Headers", "Content-Type")
 
-	badFunction := func() {
+	collectBadFunction := func() {
 		if h.collector != nil {
 			h.collector.BadFunction()
 		}
 	}
 
-	protocolError := func() {
+	collectProtocolError := func() {
 		if h.collector != nil {
 			h.collector.ProtocolError()
 		}
 	}
 
-	functionCall := func(name string, error bool, serverError bool, durationSec float64) {
+	collectFunctionCall := func(name string, error bool, serverError bool, durationSec float64) {
 		if h.collector != nil {
 			h.collector.FunctionCall(name, error, serverError, durationSec)
 		}
@@ -463,7 +463,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respond := respondJSON
 
 			if !ok {
-				badFunction()
+				collectBadFunction()
 				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
 				return
 			}
@@ -472,24 +472,24 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			ct := r.Header.Get("Content-Type")
 			if ct == "" {
-				protocolError()
+				collectProtocolError()
 				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("missing content-type")}}, "")
 				return
 			}
 			mt, mtparams, err := mime.ParseMediaType(ct)
 			if err != nil {
-				protocolError()
+				collectProtocolError()
 				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("invalid content-type %q", ct)}}, "")
 				return
 			}
 			if mt != "application/json" {
-				protocolError()
+				collectProtocolError()
 				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unrecognized content-type %q, expecting "application/json"`, mt)}}, "")
 				return
 			}
 			charset, ok := mtparams["charset"]
 			if ok && strings.ToLower(charset) != "utf-8" {
-				protocolError()
+				collectProtocolError()
 				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unexpected charset %q, expecting "utf-8"`, charset)}}, "")
 				return
 			}
@@ -500,18 +500,18 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if xerr != nil {
 				switch err := xerr.(type) {
 				case *InternalServerError:
-					functionCall(name, true, true, durationSec)
+					collectFunctionCall(name, true, true, durationSec)
 					respond(w, 500, &response{Error: err.error()}, "")
 				case *Error:
 					serverError := strings.HasPrefix(err.Code, "server")
-					functionCall(name, true, serverError, durationSec)
+					collectFunctionCall(name, true, serverError, durationSec)
 					respond(w, 200, &response{Error: err}, "")
 				default:
-					functionCall(name, true, true, durationSec)
+					collectFunctionCall(name, true, true, durationSec)
 					panic(err)
 				}
 			} else {
-				functionCall(name, false, false, durationSec)
+				collectFunctionCall(name, false, false, durationSec)
 				respond(w, 200, &response{Result: r}, "")
 			}
 
@@ -520,14 +520,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			respond := respondJSON
 			if !ok {
-				badFunction()
+				collectBadFunction()
 				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
 				return
 			}
 
 			err := r.ParseForm()
 			if err != nil {
-				protocolError()
+				collectProtocolError()
 				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("could not parse query string")}}, "")
 				return
 			}
@@ -536,7 +536,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_, ok := r.Form["callback"]
 			if ok {
 				if !validCallback(callback) {
-					protocolError()
+					collectProtocolError()
 					respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`invalid callback name %q`, callback)}}, "")
 					return
 				}
@@ -556,18 +556,18 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if xerr != nil {
 				switch err := xerr.(type) {
 				case *InternalServerError:
-					functionCall(name, true, true, durationSec)
+					collectFunctionCall(name, true, true, durationSec)
 					respond(w, 500, &response{Error: err.error()}, callback)
 				case *Error:
 					serverError := strings.HasPrefix(err.Code, "server")
-					functionCall(name, true, serverError, durationSec)
+					collectFunctionCall(name, true, serverError, durationSec)
 					respond(w, 200, &response{Error: err}, callback)
 				default:
-					functionCall(name, true, true, durationSec)
+					collectFunctionCall(name, true, true, durationSec)
 					panic(err)
 				}
 			} else {
-				functionCall(name, false, false, durationSec)
+				collectFunctionCall(name, false, false, durationSec)
 				respond(w, 200, &response{Result: r}, callback)
 			}
 
