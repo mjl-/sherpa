@@ -36,6 +36,7 @@ var (
 	title       = flag.String("title", "", "title of the API, default is the name of the type of the main API")
 )
 
+// Field is an entry in a type.
 type Field struct {
 	Name   string
 	Type   string
@@ -43,18 +44,22 @@ type Field struct {
 	Fields []*Field
 }
 
+// Type represents the type of a parameter or return value.
 type Type struct {
 	Name   string
 	Doc    string
 	Fields []*Field
 }
 
+// Function holds usage information about a function.
 type Function struct {
 	Name     string
 	Synopsis string
 	Doc      string
 }
 
+// Section is an API section with docs, functions and subsections.
+// Types are gathered per section, and moved up the section tree to the first common ancestor, so types are only documented once.
 type Section struct {
 	Pkg       *doc.Package
 	Name      string
@@ -113,7 +118,7 @@ func writeJSON(v interface{}) {
 
 func countTypes(counts map[string]int, section *Section) {
 	for _, t := range section.Types {
-		counts[t.Name] += 1
+		counts[t.Name]++
 	}
 	for _, subsec := range section.Sections {
 		countTypes(counts, subsec)
