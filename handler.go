@@ -30,7 +30,7 @@ type JSON struct {
 // Collector facilitates collection of metrics. Functions are called by the library as such events or errors occur.
 // See https://github.com/irias/sherpa-prometheus-collector for an implementation for prometheus.
 type Collector interface {
-	ProtocolError()                                                              // When a request is invalid at protocol-levle, e.g. wrong mimetype or request body.
+	ProtocolError()                                                              // When a request is invalid at protocol-level, e.g. wrong mimetype or request body.
 	BadFunction()                                                                // When called function does not exist.
 	JavaScript()                                                                 // When sherpa.js is requested.
 	JSON()                                                                       // When sherpa.json is requested.
