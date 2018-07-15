@@ -178,7 +178,7 @@ func call(ctx context.Context, functionName string, fn reflect.Value, r io.Reade
 			ee = ierr
 			return
 		}
-		panic(se)
+		panic(e)
 	}()
 
 	lcheck := func(err error, code, message string) {
