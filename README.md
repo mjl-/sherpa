@@ -27,7 +27,7 @@ Use the CLI tool sherpaclient to inspect API's through the command-line:
 
 Use sherpadoc to generate Sherpa documentation from the comments in the Go source files.
 
-	$ sherpadoc Example >example.json
+	$ sherpadoc -skip-import-paths time Example >example.json
 
 See https://bitbucket.org/mjl/sherpaweb/ with its Example API for an example.
 
@@ -45,13 +45,17 @@ https://godoc.org/bitbucket.org/mjl/sherpa
 Written by Mechiel Lukkien, mechiel@ueber.net. Bug fixes, patches, comments are welcome.
 MIT-licensed, see LICENSE.
 
+cmd/sherpadoc/gopath.go originates from the Go project, see LICENSE-go.
+
 
 # todo
+
+- when reading types from other packages (imported packages), we only look at GOPATH. vendor and modules are not taking into account, but we should.
+- more strict with incoming parameters: error for unrecognized field in objects
 
 - on errors in handler functions, it seems we get stack traces that are very long? is this normal?
 - check if we need to set more headers, and if cors headers are correct
 - allow more fields in error response objects?
-- more strict with incoming parameters: error for unrecognized field in objects
 - say something about variadic parameters
 
 - handler: write tests

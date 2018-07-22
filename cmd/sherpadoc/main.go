@@ -16,6 +16,8 @@ Types used as parameters or return values are added to the section documentation
 	Usage: sherpadoc main-section-api-type
 	  -package-path string
 		of source code to parse (default ".")
+	  -skip-import-paths string
+		comma-separated list of import paths to follow when generating type documentation
 	  -title string
 		title of the API, default is the name of the type of the main API
 */
@@ -28,12 +30,14 @@ import (
 	"log"
 	"os"
 
+	"go/ast"
 	"go/doc"
 )
 
 var (
-	packagePath = flag.String("package-path", ".", "of source code to parse")
-	title       = flag.String("title", "", "title of the API, default is the name of the type of the main API")
+	packagePath     = flag.String("package-path", ".", "of source code to parse")
+	skipImportPaths = flag.String("skip-import-paths", ".", "comma-separated list of import paths to skip when generating type documentation")
+	title           = flag.String("title", "", "title of the API, default is the name of the type of the main API")
 )
 
 // Field is an entry in a type.
@@ -51,18 +55,26 @@ type Type struct {
 	Fields []*Field
 }
 
-// Function holds usage information about a function.
+// Function holds usage information about an exported function.
 type Function struct {
 	Name     string
 	Synopsis string
 	Doc      string
 }
 
+// Parsed is a package that was parsed, possibly including some of its imports as well, because the package that contains the section references it.
+type parsed struct {
+	Path    string       // Of import, used for keeping duplicate type names from different packages unique.
+	Pkg     *ast.Package // Needed for its files: we need a file to find the package path and identifier used to reference other types.
+	Docpkg  *doc.Package
+	Imports map[string]*parsed // Package/import path to parsed packages.
+}
+
 // Section is an API section with docs, functions and subsections.
 // Types are gathered per section, and moved up the section tree to the first common ancestor, so types are only documented once.
 type Section struct {
-	Pkg       *doc.Package
-	Name      string
+	TypeName  string // Name of the type for this section.
+	Name      string // Name of the section. Either same as TypeName, or overridden with a "sherpa" struct tag.
 	Doc       string
 	Types     []*Type
 	Typeset   map[string]struct{}

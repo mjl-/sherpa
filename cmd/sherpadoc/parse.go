@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -22,7 +23,13 @@ func parseDoc(apiName, packagePath string) *Section {
 
 		for _, t := range docpkg.Types {
 			if t.Name == apiName {
-				return parseSection(t, docpkg)
+				par := &parsed{
+					Path:    packagePath,
+					Pkg:     pkg,
+					Docpkg:  docpkg,
+					Imports: make(map[string]*parsed),
+				}
+				return parseSection(t, par)
 			}
 		}
 	}
@@ -34,8 +41,8 @@ func cleanText(s string) string {
 	return strings.TrimSpace(s)
 }
 
-func lookupType(pkg *doc.Package, name string) *doc.Type {
-	for _, t := range pkg.Types {
+func (par *parsed) lookupType(name string) *doc.Type {
+	for _, t := range par.Docpkg.Types {
 		if t.Name == name {
 			return t
 		}
@@ -43,9 +50,9 @@ func lookupType(pkg *doc.Package, name string) *doc.Type {
 	return nil
 }
 
-func parseSection(t *doc.Type, pkg *doc.Package) *Section {
+func parseSection(t *doc.Type, par *parsed) *Section {
 	section := &Section{
-		pkg,
+		t.Name,
 		t.Name,
 		cleanText(t.Doc),
 		nil,
@@ -59,7 +66,7 @@ func parseSection(t *doc.Type, pkg *doc.Package) *Section {
 		return t.Methods[i].Decl.Name.NamePos < t.Methods[j].Decl.Name.NamePos
 	})
 	for _, fn := range methods {
-		parseMethod(fn, section)
+		parseMethod(fn, section, par)
 	}
 
 	ts := t.Decl.Specs[0].(*ast.TypeSpec)
@@ -74,29 +81,31 @@ func parseSection(t *doc.Type, pkg *doc.Package) *Section {
 		if f.Tag != nil {
 			name = reflect.StructTag(stringLiteral(f.Tag.Value)).Get("sherpa")
 		}
-		subt := lookupType(pkg, ident.Name)
+		subt := par.lookupType(ident.Name)
 		if subt == nil {
-			log.Fatalf("section %q not found\n", ident.Name)
+			log.Fatalf("subsection %q not found\n", ident.Name)
 		}
-		subsection := parseSection(subt, pkg)
+		subsection := parseSection(subt, par)
 		subsection.Name = name
 		section.Sections = append(section.Sections, subsection)
 	}
 	return section
 }
 
-func gatherFieldType(typeName string, f *Field, e ast.Expr, section *Section) string {
+func gatherFieldType(typeName string, f *Field, e ast.Expr, section *Section, par *parsed) string {
 	switch t := e.(type) {
 	case *ast.Ident:
-		tt := lookupType(section.Pkg, t.Name)
+		tt := par.lookupType(t.Name)
 		if tt != nil {
-			ensureNamedType(tt, section)
+			ensureNamedType(tt, section, par)
 		}
 		return t.Name
 	case *ast.ArrayType:
-		return "[]" + gatherFieldType(typeName, f, t.Elt, section)
+		return "[]" + gatherFieldType(typeName, f, t.Elt, section, par)
 	case *ast.MapType:
-		return fmt.Sprintf("map[%s]%s", gatherFieldType(typeName, f, t.Key, section), gatherFieldType(typeName, f, t.Value, section))
+		kt := gatherFieldType(typeName, f, t.Key, section, par)
+		vt := gatherFieldType(typeName, f, t.Value, section, par)
+		return fmt.Sprintf("map[%s]%s", kt, vt)
 	case *ast.StructType:
 		for _, ft := range t.Fields.List {
 			name := nameList(ft.Names, ft.Tag)
@@ -109,7 +118,7 @@ func gatherFieldType(typeName string, f *Field, e ast.Expr, section *Section) st
 				fieldDoc(ft),
 				[]*Field{},
 			}
-			subf.Type = gatherFieldType(typeName, subf, ft.Type, section)
+			subf.Type = gatherFieldType(typeName, subf, ft.Type, section, par)
 			f.Fields = append(f.Fields, subf)
 		}
 		return "object"
@@ -119,10 +128,9 @@ func gatherFieldType(typeName string, f *Field, e ast.Expr, section *Section) st
 		}
 		return "?"
 	case *ast.StarExpr:
-		return "*" + gatherFieldType(typeName, f, t.X, section)
+		return "*" + gatherFieldType(typeName, f, t.X, section, par)
 	case *ast.SelectorExpr:
-		// we don't cross package boundaries for docs, eg time.Time
-		return t.Sel.Name
+		return parseSelector(t, typeName, section, par)
 	}
 	log.Fatalf("unsupported type in struct %q, field %q: %T\n", typeName, f.Name, e)
 	return ""
@@ -143,8 +151,9 @@ func fieldDoc(f *ast.Field) string {
 }
 
 // parse type of param/return type used in one of the functions
-func ensureNamedType(t *doc.Type, section *Section) {
-	if _, have := section.Typeset[t.Name]; have {
+func ensureNamedType(t *doc.Type, section *Section, par *parsed) {
+	typePath := par.Path + "." + t.Name
+	if _, have := section.Typeset[typePath]; have {
 		return
 	}
 
@@ -155,7 +164,7 @@ func ensureNamedType(t *doc.Type, section *Section) {
 	}
 	// add it early, so self-referencing types can't cause a loop
 	section.Types = append(section.Types, tt)
-	section.Typeset[tt.Name] = struct{}{}
+	section.Typeset[typePath] = struct{}{}
 
 	ts := t.Decl.Specs[0].(*ast.TypeSpec)
 	st, ok := ts.Type.(*ast.StructType)
@@ -174,7 +183,7 @@ func ensureNamedType(t *doc.Type, section *Section) {
 			fieldDoc(field),
 			[]*Field{},
 		}
-		f.Type = gatherFieldType(t.Name, f, field.Type, section)
+		f.Type = gatherFieldType(t.Name, f, field.Type, section, par)
 		tt.Fields = append(tt.Fields, f)
 	}
 }
@@ -218,20 +227,22 @@ func nameList(names []*ast.Ident, tag *ast.BasicLit) string {
 	return strings.Join(l, ", ")
 }
 
-func parseArgType(e ast.Expr, section *Section) string {
+func parseArgType(e ast.Expr, section *Section, par *parsed) string {
 	switch t := e.(type) {
 	case *ast.Ident:
-		tt := lookupType(section.Pkg, t.Name)
+		tt := par.lookupType(t.Name)
 		if tt != nil {
-			ensureNamedType(tt, section)
+			ensureNamedType(tt, section, par)
 		}
 		return t.Name
 	case *ast.ArrayType:
-		return "[]" + parseArgType(t.Elt, section)
+		return "[]" + parseArgType(t.Elt, section, par)
 	case *ast.Ellipsis:
-		return "..." + parseArgType(t.Elt, section)
+		return "..." + parseArgType(t.Elt, section, par)
 	case *ast.MapType:
-		return fmt.Sprintf("map[%s]%s", parseArgType(t.Key, section), parseArgType(t.Value, section))
+		kt := parseArgType(t.Key, section, par)
+		vt := parseArgType(t.Value, section, par)
+		return fmt.Sprintf("map[%s]%s", kt, vt)
 	case *ast.StructType:
 		l := []string{}
 		for _, ft := range t.Fields.List {
@@ -239,7 +250,7 @@ func parseArgType(e ast.Expr, section *Section) string {
 			if name == "" {
 				continue
 			}
-			l = append(l, fmt.Sprintf("%s %s", name, parseArgType(ft.Type, section)))
+			l = append(l, fmt.Sprintf("%s %s", name, parseArgType(ft.Type, section, par)))
 		}
 		return fmt.Sprintf("struct{%s}", strings.Join(l, ", "))
 	case *ast.InterfaceType:
@@ -248,16 +259,117 @@ func parseArgType(e ast.Expr, section *Section) string {
 		}
 		return "?"
 	case *ast.StarExpr:
-		return "*" + parseArgType(t.X, section)
+		return "*" + parseArgType(t.X, section, par)
 	case *ast.SelectorExpr:
-		// we don't cross package boundaries for docs, eg time.Time
-		return t.Sel.Name
+		return parseSelector(t, section.TypeName, section, par)
 	}
 	log.Fatalf("unsupported param/return type %T\n", e)
 	return ""
 }
 
-func parseArgs(isParams bool, fields *ast.FieldList, section *Section) string {
+func parseSelector(t *ast.SelectorExpr, sourceTypeName string, section *Section, par *parsed) string {
+	packageIdent, ok := t.X.(*ast.Ident)
+	if !ok {
+		log.Fatalf("unexpected non-ident for SelectorExpr.X\n")
+	}
+	pkgName := packageIdent.Name
+	typeName := t.Sel.Name
+
+	if testSkipImportPath(pkgName) {
+		return typeName
+	}
+	importPath := par.lookupPackageImportPath(sourceTypeName, pkgName)
+	if importPath == "" {
+		log.Fatalf("cannot find source for %q (perhaps try -skip-import-paths)\n", fmt.Sprintf("%s.%s", pkgName, typeName))
+	}
+	if testSkipImportPath(importPath) {
+		return typeName
+	}
+
+	imppar := par.ensurePackageParsed(importPath)
+	tt := imppar.lookupType(typeName)
+	if tt == nil {
+		log.Fatalf("could not find type %q in package %q\n", typeName, importPath)
+	}
+	ensureNamedType(tt, section, imppar)
+	return typeName
+}
+
+func testSkipImportPath(importPath string) bool {
+	for _, e := range strings.Split(*skipImportPaths, ",") {
+		if e == importPath {
+			return true
+		}
+	}
+	return false
+}
+
+func (par *parsed) ensurePackageParsed(importPath string) *parsed {
+	r := par.Imports[importPath]
+	if r != nil {
+		return r
+	}
+
+	// todo: should also attempt to look at vendor/ directory, and modules
+	localPath := os.Getenv("GOPATH")
+	if localPath == "" {
+		localPath = defaultGOPATH()
+	}
+	localPath += "/src/" + importPath
+
+	fset := token.NewFileSet()
+	pkgs, firstErr := parser.ParseDir(fset, localPath, nil, parser.ParseComments)
+	check(firstErr, "parsing code")
+	if len(pkgs) != 1 {
+		log.Fatalf("need exactly one package parsed for import path %q, but saw %d\n", importPath, len(pkgs))
+	}
+	for _, pkg := range pkgs {
+		docpkg := doc.New(pkg, "", doc.AllDecls)
+		npar := &parsed{
+			Path:    localPath,
+			Pkg:     pkg,
+			Docpkg:  docpkg,
+			Imports: make(map[string]*parsed),
+		}
+		par.Imports[importPath] = npar
+		return npar
+	}
+	return nil
+}
+
+// LookupPackageImportPath returns the import/package path for pkgName as used as a selector in this section.
+func (par *parsed) lookupPackageImportPath(sectionTypeName, pkgName string) string {
+	file := par.lookupTypeFile(sectionTypeName)
+	for _, imp := range file.Imports {
+		if imp.Name != nil && imp.Name.Name == pkgName || imp.Name == nil && strings.HasSuffix(stringLiteral(imp.Path.Value), "/"+pkgName) {
+			return stringLiteral(imp.Path.Value)
+		}
+	}
+	return ""
+}
+
+// LookupTypeFile returns the go source file that containst he definition of the type named typeName.
+func (par *parsed) lookupTypeFile(typeName string) *ast.File {
+	for _, file := range par.Pkg.Files {
+		for _, decl := range file.Decls {
+			switch d := decl.(type) {
+			case (*ast.GenDecl):
+				for _, spec := range d.Specs {
+					switch s := spec.(type) {
+					case *ast.TypeSpec:
+						if s.Name.Name == typeName {
+							return file
+						}
+					}
+				}
+			}
+		}
+	}
+	log.Fatalf("could not find type named %q in package %q\n", typeName, par.Path)
+	return nil
+}
+
+func parseArgs(isParams bool, fields *ast.FieldList, section *Section, par *parsed) string {
 	if fields == nil {
 		return ""
 	}
@@ -267,7 +379,7 @@ func parseArgs(isParams bool, fields *ast.FieldList, section *Section) string {
 		for _, name := range f.Names {
 			names = append(names, name.Name)
 		}
-		typeStr := parseArgType(f.Type, section)
+		typeStr := parseArgType(f.Type, section, par)
 
 		var arg string
 		if isParams {
@@ -288,10 +400,10 @@ func lowerFirst(s string) string {
 	return strings.ToLower(s[:1]) + s[1:]
 }
 
-func parseMethod(fn *doc.Func, section *Section) {
+func parseMethod(fn *doc.Func, section *Section, par *parsed) {
 	name := lowerFirst(fn.Name)
-	params := parseArgs(true, fn.Decl.Type.Params, section)
-	results := parseArgs(false, fn.Decl.Type.Results, section)
+	params := parseArgs(true, fn.Decl.Type.Params, section, par)
+	results := parseArgs(false, fn.Decl.Type.Results, section, par)
 	synopsis := fmt.Sprintf("%s(%s)", name, params)
 	if results != "" {
 		synopsis += " " + results
