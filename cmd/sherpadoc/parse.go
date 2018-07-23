@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go/ast"
@@ -188,16 +189,11 @@ func ensureNamedType(t *doc.Type, section *Section, par *parsed) {
 	}
 }
 
-// todo: there's probably a function in the standard library for this... find it
-// parse string literal
+// Parse string literal. Errors are fatal.
 func stringLiteral(s string) string {
-	if strings.HasPrefix(s, "`") && strings.HasSuffix(s, "`") {
-		return s[1 : len(s)-1]
-	}
-	if strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
-		return s[1 : len(s)-1]
-	}
-	return s
+	r, err := strconv.Unquote(s)
+	check(err, "parsing string literal")
+	return r
 }
 
 func jsonName(tag string, name string) string {
