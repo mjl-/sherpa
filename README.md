@@ -51,7 +51,7 @@ cmd/sherpadoc/gopath.go originates from the Go project, see LICENSE-go.
 # todo
 
 - when reading types from other packages (imported packages), we only look at GOPATH. vendor and modules are not taking into account, but we should.
-- more strict with incoming parameters: error for unrecognized field in objects
+- perhaps allow loading sherpa.js with a ?name=..., to make it return a different js identifier? often i just use "api" for simple applications.
 
 - on errors in handler functions, it seems we get stack traces that are very long? is this normal?
 - check if we need to set more headers, and if cors headers are correct
