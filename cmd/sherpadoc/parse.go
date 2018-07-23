@@ -275,14 +275,14 @@ func parseSelector(t *ast.SelectorExpr, sourceTypeName string, section *Section,
 	pkgName := packageIdent.Name
 	typeName := t.Sel.Name
 
-	if testSkipImportPath(pkgName) {
+	if testSkipImportPath(pkgName, typeName) {
 		return typeName
 	}
 	importPath := par.lookupPackageImportPath(sourceTypeName, pkgName)
 	if importPath == "" {
 		log.Fatalf("cannot find source for %q (perhaps try -skip-import-paths)\n", fmt.Sprintf("%s.%s", pkgName, typeName))
 	}
-	if testSkipImportPath(importPath) {
+	if testSkipImportPath(importPath, typeName) {
 		return typeName
 	}
 
@@ -295,7 +295,12 @@ func parseSelector(t *ast.SelectorExpr, sourceTypeName string, section *Section,
 	return typeName
 }
 
-func testSkipImportPath(importPath string) bool {
+func testSkipImportPath(importPath, typeName string) bool {
+	// context.Context is often the first parameter to a function. Don't fail on not being able to find its source.
+	if importPath == "context" && typeName == "Context" {
+		return true
+	}
+
 	for _, e := range strings.Split(*skipImportPaths, ",") {
 		if e == importPath {
 			return true
