@@ -106,17 +106,7 @@ func main() {
 		section.Name = *title
 	}
 
-	// move types used in multiple sections to the top
-	typeCounts := map[string]int{}
-	countTypes(typeCounts, section)
-	moved := map[string]struct{}{}
-	for _, t := range section.Types {
-		moved[t.Name] = struct{}{}
-	}
-	for _, subsec := range section.Sections {
-		moveTypes(typeCounts, moved, subsec, section)
-	}
-
+	moveTypesUp(section)
 	doc := sherpaDoc(section)
 	writeJSON(doc)
 }
@@ -131,32 +121,66 @@ func writeJSON(v interface{}) {
 	check(err, "writing json to stdout")
 }
 
-func countTypes(counts map[string]int, section *Section) {
+type typeCount struct {
+	t     *Type
+	count int
+}
+
+// Move types used in multiple sections up to their common ancestor.
+func moveTypesUp(section *Section) {
+	// First, the process for each child.
+	for _, s := range section.Sections {
+		moveTypesUp(s)
+	}
+
+	// Count how often a type is used from here downwards.
+	// If more than once, move the type up to here.
+	counts := map[string]*typeCount{}
+	countTypes(counts, section)
+	for _, tc := range counts {
+		if tc.count <= 1 {
+			continue
+		}
+		for _, sub := range section.Sections {
+			removeType(sub, tc.t)
+		}
+		if !hasType(section, tc.t) {
+			section.Types = append(section.Types, tc.t)
+		}
+	}
+}
+
+func countTypes(counts map[string]*typeCount, section *Section) {
 	for _, t := range section.Types {
-		counts[t.Name]++
+		_, ok := counts[t.Name]
+		if !ok {
+			counts[t.Name] = &typeCount{t, 0}
+		}
+		counts[t.Name].count++
 	}
 	for _, subsec := range section.Sections {
 		countTypes(counts, subsec)
 	}
 }
 
-// todo: only move up to the common section, not always to the top section
-func moveTypes(typeCounts map[string]int, moved map[string]struct{}, section, topSection *Section) {
-	var ntypes []*Type
-	for _, t := range section.Types {
-		if typeCounts[t.Name] <= 1 {
-			ntypes = append(ntypes, t)
-			continue
-		}
-		_, ok := moved[t.Name]
-		if !ok {
-			moved[t.Name] = struct{}{}
-			topSection.Types = append(topSection.Types, t)
-			topSection.Typeset[t.Name] = struct{}{}
+func removeType(section *Section, t *Type) {
+	types := make([]*Type, 0, len(section.Types))
+	for _, tt := range section.Types {
+		if tt.Name != t.Name {
+			types = append(types, tt)
 		}
 	}
-	section.Types = ntypes
-	for _, subsec := range section.Sections {
-		moveTypes(typeCounts, moved, subsec, topSection)
+	section.Types = types
+	for _, sub := range section.Sections {
+		removeType(sub, t)
 	}
+}
+
+func hasType(section *Section, t *Type) bool {
+	for _, tt := range section.Types {
+		if tt.Name == t.Name {
+			return true
+		}
+	}
+	return false
 }

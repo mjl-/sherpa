@@ -38,10 +38,6 @@ func parseDoc(apiName, packagePath string) *Section {
 	return nil
 }
 
-func cleanText(s string) string {
-	return strings.TrimSpace(s)
-}
-
 func (par *parsed) lookupType(name string) *doc.Type {
 	for _, t := range par.Docpkg.Types {
 		if t.Name == name {
@@ -55,7 +51,7 @@ func parseSection(t *doc.Type, par *parsed) *Section {
 	section := &Section{
 		t.Name,
 		t.Name,
-		cleanText(t.Doc),
+		strings.TrimSpace(t.Doc),
 		nil,
 		map[string]struct{}{},
 		nil,
@@ -80,7 +76,7 @@ func parseSection(t *doc.Type, par *parsed) *Section {
 		}
 		name := ident.Name
 		if f.Tag != nil {
-			name = reflect.StructTag(stringLiteral(f.Tag.Value)).Get("sherpa")
+			name = reflect.StructTag(parseStringLiteral(f.Tag.Value)).Get("sherpa")
 		}
 		subt := par.lookupType(ident.Name)
 		if subt == nil {
@@ -160,7 +156,7 @@ func ensureNamedType(t *doc.Type, section *Section, par *parsed) {
 
 	tt := &Type{
 		t.Name,
-		cleanText(t.Doc),
+		strings.TrimSpace(t.Doc),
 		[]*Field{},
 	}
 	// add it early, so self-referencing types can't cause a loop
@@ -190,7 +186,7 @@ func ensureNamedType(t *doc.Type, section *Section, par *parsed) {
 }
 
 // Parse string literal. Errors are fatal.
-func stringLiteral(s string) string {
+func parseStringLiteral(s string) string {
 	r, err := strconv.Unquote(s)
 	check(err, "parsing string literal")
 	return r
@@ -218,7 +214,7 @@ func nameList(names []*ast.Ident, tag *ast.BasicLit) string {
 		}
 	}
 	if len(l) == 1 && tag != nil {
-		return jsonName(stringLiteral(tag.Value), l[0])
+		return jsonName(parseStringLiteral(tag.Value), l[0])
 	}
 	return strings.Join(l, ", ")
 }
@@ -342,8 +338,8 @@ func (par *parsed) ensurePackageParsed(importPath string) *parsed {
 func (par *parsed) lookupPackageImportPath(sectionTypeName, pkgName string) string {
 	file := par.lookupTypeFile(sectionTypeName)
 	for _, imp := range file.Imports {
-		if imp.Name != nil && imp.Name.Name == pkgName || imp.Name == nil && strings.HasSuffix(stringLiteral(imp.Path.Value), "/"+pkgName) {
-			return stringLiteral(imp.Path.Value)
+		if imp.Name != nil && imp.Name.Name == pkgName || imp.Name == nil && strings.HasSuffix(parseStringLiteral(imp.Path.Value), "/"+pkgName) {
+			return parseStringLiteral(imp.Path.Value)
 		}
 	}
 	return ""
