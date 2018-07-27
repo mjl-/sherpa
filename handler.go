@@ -330,7 +330,7 @@ func gatherFunctions(functions map[string]reflect.Value, t reflect.Type, v refle
 // Exported functions can also panic with an *Error or *InternalServerError to indicate a failed function call.
 // Returning an error with a Code starting with "server" indicates an implementation error, which will be logged through the collector.
 //
-// Variadic functions can be called, but in the call (from the client), the variadic parameter must be passed in as an array.
+// Variadic functions can be called, but in the call (from the client), the variadic parameters must be passed in as an array.
 //
 // This handler strips "path" from the request.
 func NewHandler(path string, version string, api interface{}, doc *Doc, opts *HandlerOpts) (http.Handler, error) {

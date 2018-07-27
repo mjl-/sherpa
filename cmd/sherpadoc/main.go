@@ -1,25 +1,30 @@
 /*
-Sherpadoc reads your Go code, and prints sherpa documentation in JSON.
+Sherpadoc parses your Go code, and outputs sherpa documentation in JSON.
+
+You typically provide this documentation to your sherpa HTTP handler,
+which serves it in client requests for documentation.
 
 Example:
 
 	sherpadoc Awesome >awesome.json
 
-Sherpadoc parses the Go code, finds the type (a struct) "Awesome", and gathers documentation:
+Sherpadoc parses the Go code, finds a struct named "Awesome", and
+gathers documentation:
 
-Comments above the struct are used as section documentation.  Fields in section structs cause the referenced section struct to be included in the generated documentation as well. Set the name of the (sub)section using a struct tag "sherpa", for example `sherpa:"Another Awesome API"`.
+Comments above the struct are used as section documentation.  Fields
+in section structs must also be structs. They are treated as
+subsections, and can in turn contain subsections. These subsections
+and their methods are also exported and documented in the sherpa
+API. Add a struct tag "sherpa" to override the name of the subsection,
+for example `sherpa:"Another Awesome API"`.
 
 Comments above method names are function documentation. A synopsis is automatically generated.
 
 Types used as parameters or return values are added to the section documentation where they are used. The comments above the type are used, as well as the comments for each field in a struct.  The documented field names know about the "json" struct field tags.
 
-	Usage: sherpadoc main-section-api-type
-	  -package-path string
-		of source code to parse (default ".")
-	  -skip-import-paths string
-		comma-separated list of import paths to follow when generating type documentation
-	  -title string
-		title of the API, default is the name of the type of the main API
+More eloborate example:
+
+	sherpadoc -title 'Awesome API by mjl' -skip-import-paths time,example.com/some/pkg -package-path path/to/awesome/code Awesome >awesome.json
 */
 package main
 

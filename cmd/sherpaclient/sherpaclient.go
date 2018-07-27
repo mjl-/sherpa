@@ -3,10 +3,13 @@ Sherpaclient calls Sherpa API functions and prints Sherpa API documentation from
 
 Example:
 
+	# all documentation for the API
 	sherpaclient -doc https://sherpa.irias.nl/example/
 
+	# documentation for just one function
 	sherpaclient -doc https://sherpa.irias.nl/example/ sum
 
+	# call a function
 	sherpaclient https://sherpa.irias.nl/example/ sum 1 1
 
 The parameters to a function must be valid JSON. Don't forget to quote the double quotes of your JSON strings!
@@ -27,6 +30,7 @@ import (
 	"os"
 
 	"bitbucket.org/mjl/sherpa"
+	"bitbucket.org/mjl/sherpa/client"
 )
 
 var (
@@ -82,7 +86,7 @@ func main() {
 		}
 	}
 
-	c, err := sherpa.NewClient(url, []string{})
+	c, err := client.New(url, []string{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -104,7 +108,7 @@ func main() {
 }
 
 func info(url string) {
-	c, err := sherpa.NewClient(url, nil)
+	c, err := client.New(url, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -121,7 +125,7 @@ func info(url string) {
 }
 
 func doc(url string, args []string) {
-	c, err := sherpa.NewClient(url, nil)
+	c, err := client.New(url, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

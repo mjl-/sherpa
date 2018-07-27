@@ -1,10 +1,12 @@
-package sherpa
+package client
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"bitbucket.org/mjl/sherpa"
 )
 
 // Client lets you call functions from an existing Sherpa API.
@@ -18,9 +20,9 @@ type Client struct {
 	SherpaVersion int      `json:"sherpaVersion"` // Version of the Sherpa specification this API implements. May be nil.
 }
 
-// NewClient makes a new Sherpa Client, for the given URL.
+// New makes a new sherpa Client, for the given URL.
 // If "functions" is nil, the API at the URL is contacted for a function list.
-func NewClient(url string, functions []string) (*Client, error) {
+func New(url string, functions []string) (*Client, error) {
 	c := &Client{BaseURL: url, Functions: functions}
 
 	if functions != nil {
@@ -38,7 +40,7 @@ func NewClient(url string, functions []string) (*Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		if c.SherpaVersion != SherpaVersion {
+		if c.SherpaVersion != sherpa.SherpaVersion {
 			return nil, fmt.Errorf("remote API uses unsupported sherpa version %d", c.SherpaVersion)
 		}
 		return c, nil
@@ -60,23 +62,23 @@ func (c *Client) Call(result interface{}, functionName string, params ...interfa
 	buf := &bytes.Buffer{}
 	err := json.NewEncoder(buf).Encode(req)
 	if err != nil {
-		return &Error{Code: SherpaClientError, Message: "could not encode request parameters: " + err.Error()}
+		return &sherpa.Error{Code: sherpa.SherpaClientError, Message: "could not encode request parameters: " + err.Error()}
 	}
 	url := c.BaseURL + functionName
 	resp, err := http.Post(url, "application/json", buf)
 	if err != nil {
-		return &Error{Code: SherpaClientError, Message: "sending POST request: " + err.Error()}
+		return &sherpa.Error{Code: sherpa.SherpaClientError, Message: "sending POST request: " + err.Error()}
 	}
 	switch resp.StatusCode {
 	case 200:
 		defer resp.Body.Close()
 		var response struct {
 			Result json.RawMessage `json:"result"`
-			Error  *Error          `json:"error"`
+			Error  *sherpa.Error   `json:"error"`
 		}
 		err = json.NewDecoder(resp.Body).Decode(&response)
 		if err != nil {
-			return &Error{Code: SherpaBadResponse, Message: "could not parse JSON response: " + err.Error()}
+			return &sherpa.Error{Code: sherpa.SherpaBadResponse, Message: "could not parse JSON response: " + err.Error()}
 		}
 		if response.Error != nil {
 			return response.Error
@@ -84,13 +86,13 @@ func (c *Client) Call(result interface{}, functionName string, params ...interfa
 		if result != nil {
 			err = json.Unmarshal(response.Result, result)
 			if err != nil {
-				return &Error{Code: SherpaBadResponse, Message: "could not unmarshal JSON response"}
+				return &sherpa.Error{Code: sherpa.SherpaBadResponse, Message: "could not unmarshal JSON response"}
 			}
 		}
 		return nil
 	case 404:
-		return &Error{Code: SherpaBadFunction, Message: "no such function"}
+		return &sherpa.Error{Code: sherpa.SherpaBadFunction, Message: "no such function"}
 	default:
-		return &Error{Code: SherpaHTTPError, Message: "HTTP error from server: " + resp.Status}
+		return &sherpa.Error{Code: sherpa.SherpaHTTPError, Message: "HTTP error from server: " + resp.Status}
 	}
 }
