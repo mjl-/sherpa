@@ -60,7 +60,7 @@ func parseSection(t *doc.Type, par *parsed) *Section {
 	methods := make([]*doc.Func, len(t.Methods))
 	copy(methods, t.Methods)
 	sort.Slice(methods, func(i, j int) bool {
-		return t.Methods[i].Decl.Name.NamePos < t.Methods[j].Decl.Name.NamePos
+		return methods[i].Decl.Name.NamePos < methods[j].Decl.Name.NamePos
 	})
 	for _, fn := range methods {
 		parseMethod(fn, section, par)
