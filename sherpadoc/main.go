@@ -1,32 +1,5 @@
-/*
-Sherpadoc parses your Go code, and outputs sherpa documentation in JSON.
-
-You typically provide this documentation to your sherpa HTTP handler,
-which serves it in client requests for documentation.
-
-Example:
-
-	sherpadoc Awesome >awesome.json
-
-Sherpadoc parses the Go code, finds a struct named "Awesome", and
-gathers documentation:
-
-Comments above the struct are used as section documentation.  Fields
-in section structs must also be structs. They are treated as
-subsections, and can in turn contain subsections. These subsections
-and their methods are also exported and documented in the sherpa
-API. Add a struct tag "sherpa" to override the name of the subsection,
-for example `sherpa:"Another Awesome API"`.
-
-Comments above method names are function documentation. A synopsis is automatically generated.
-
-Types used as parameters or return values are added to the section documentation where they are used. The comments above the type are used, as well as the comments for each field in a struct.  The documented field names know about the "json" struct field tags.
-
-More eloborate example:
-
-	sherpadoc -title 'Awesome API by mjl' -skip-import-paths time,example.com/some/pkg -package-path path/to/awesome/code Awesome >awesome.json
-*/
-package main
+// Package sherpadoc is a library with a Main function so you can run it as a command during builds.
+package sherpadoc
 
 import (
 	"encoding/json"
@@ -93,7 +66,8 @@ func check(err error, action string) {
 	}
 }
 
-func main() {
+// Main runs the sherpadoc program.
+func Main() {
 	log.SetFlags(0)
 	log.SetPrefix("sherpadoc: ")
 	flag.Usage = func() {
