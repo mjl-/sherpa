@@ -2,44 +2,43 @@ package sherpadoc
 
 import (
 	"bitbucket.org/mjl/sherpa"
-	"fmt"
 	"strings"
 )
 
-func generateField(f *Field, indent string) string {
-	s := fmt.Sprintf("%s- `%s` _%s_", indent, f.Name, f.Type)
-	if f.Doc != "" {
-		s += " - " + f.Doc
-	}
-	s += "\n"
-	indent += "\t"
-	for _, subf := range f.Fields {
-		s += generateField(subf, indent)
-	}
-	return s
-}
-
-func sherpaDoc(section *Section) *sherpa.Doc {
+func sherpaDoc(sec *section) *sherpa.Doc {
 	doc := &sherpa.Doc{
-		Title:     section.Name,
-		Text:      section.Doc,
+		Title:     sec.Name,
+		Text:      sec.Text,
 		Functions: []*sherpa.FunctionDoc{},
 		Sections:  []*sherpa.Doc{},
+		Types:     []sherpa.TypeDoc{},
 	}
-	for _, t := range section.Types {
-		doc.Text += "\n## Type " + t.Name + "\n" + t.Doc + "\n"
-		for _, f := range t.Fields {
-			doc.Text += generateField(f, "")
+	for _, t := range sec.Types {
+		tt := sherpa.TypeDoc{
+			Name:   t.Name,
+			Text:   t.Text,
+			Fields: []sherpa.FieldDoc{},
 		}
+		for _, f := range t.Fields {
+			ff := sherpa.FieldDoc{
+				Name: f.Name,
+				Text: f.Doc,
+				Type: f.Type,
+			}
+			tt.Fields = append(tt.Fields, ff)
+		}
+		doc.Types = append(doc.Types, tt)
 	}
-	for _, fn := range section.Functions {
+	for _, fn := range sec.Functions {
 		f := &sherpa.FunctionDoc{
-			Name: fn.Name,
-			Text: strings.TrimSpace(fn.Synopsis + "\n\n" + fn.Doc),
+			Name:   fn.Name,
+			Text:   strings.TrimSpace(fn.Text),
+			Params: fn.Params,
+			Return: fn.Return,
 		}
 		doc.Functions = append(doc.Functions, f)
 	}
-	for _, subsec := range section.Sections {
+	for _, subsec := range sec.Sections {
 		doc.Sections = append(doc.Sections, sherpaDoc(subsec))
 	}
 	doc.Text = strings.TrimSpace(doc.Text)

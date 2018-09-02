@@ -418,7 +418,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == "":
 		baseURL := getBaseURL(r) + h.path
-		docURL := "https://sherpa.irias.nl/#" + baseURL
+		docURL := "https://www.sherpadoc.org/#" + baseURL
 		err := htmlTemplate.Execute(w, map[string]interface{}{
 			"id":      h.sherpaJSON.ID,
 			"title":   h.sherpaJSON.Title,

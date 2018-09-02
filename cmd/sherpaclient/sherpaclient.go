@@ -4,13 +4,13 @@ Sherpaclient calls Sherpa API functions and prints Sherpa API documentation from
 Example:
 
 	# all documentation for the API
-	sherpaclient -doc https://sherpa.irias.nl/example/
+	sherpaclient -doc https://www.sherpadoc.org/example/
 
 	# documentation for just one function
-	sherpaclient -doc https://sherpa.irias.nl/example/ sum
+	sherpaclient -doc https://www.sherpadoc.org/example/ sum
 
 	# call a function
-	sherpaclient https://sherpa.irias.nl/example/ sum 1 1
+	sherpaclient https://www.sherpadoc.org/example/ sum 1 1
 
 The parameters to a function must be valid JSON. Don't forget to quote the double quotes of your JSON strings!
 

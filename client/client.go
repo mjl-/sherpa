@@ -9,10 +9,15 @@ import (
 	"bitbucket.org/mjl/sherpa"
 )
 
+const (
+	// ClientEncodeErr represents an error encoding parameters.
+	ClientEncodeErr = "client:encode"
+)
+
 // Client lets you call functions from an existing Sherpa API.
 // If the API was initialized with a non-nil function list, some fields will be nil (as indicated).
 type Client struct {
-	BaseURL       string   `json:"baseurl"`       // BaseURL the API is served from, e.g. https://sherpa.irias.nl/example/
+	BaseURL       string   `json:"baseurl"`       // BaseURL the API is served from, e.g. https://www.sherpadoc.org/example/
 	Functions     []string `json:"functions"`     // Function names exported by the API
 	ID            string   `json:"id"`            // Short ID of the API. May be nil.
 	Title         string   `json:"title"`         // Human-readable name of the API. May be nil.
@@ -62,12 +67,12 @@ func (c *Client) Call(result interface{}, functionName string, params ...interfa
 	buf := &bytes.Buffer{}
 	err := json.NewEncoder(buf).Encode(req)
 	if err != nil {
-		return &sherpa.Error{Code: sherpa.SherpaClientError, Message: "could not encode request parameters: " + err.Error()}
+		return &sherpa.Error{Code: ClientEncodeErr, Message: "could not encode request parameters: " + err.Error()}
 	}
 	url := c.BaseURL + functionName
 	resp, err := http.Post(url, "application/json", buf)
 	if err != nil {
-		return &sherpa.Error{Code: sherpa.SherpaClientError, Message: "sending POST request: " + err.Error()}
+		return &sherpa.Error{Code: sherpa.SherpaHTTPError, Message: "sending POST request: " + err.Error()}
 	}
 	switch resp.StatusCode {
 	case 200:
