@@ -214,6 +214,12 @@ func gatherFieldType(typeName string, f *field, e ast.Expr, sec *section, pp *pa
 		if tt != nil {
 			ensureNamedType(tt, sec, pp)
 		}
+		switch t.Name {
+		case "float32", "float64":
+			return []string{"float"}
+		case "int16", "int32", "int64", "uint16", "uint32", "uint64":
+			return []string{"int"}
+		}
 		return []string{t.Name}
 	case *ast.ArrayType:
 		return append([]string{"[]"}, gatherFieldType(typeName, f, t.Elt, sec, pp)...)
@@ -248,6 +254,12 @@ func parseArgType(e ast.Expr, sec *section, pp *parsedPackage) typeTokens {
 		tt := pp.lookupType(t.Name)
 		if tt != nil {
 			ensureNamedType(tt, sec, pp)
+		}
+		switch t.Name {
+		case "float32", "float64":
+			return []string{"float"}
+		case "int16", "int32", "int64", "uint16", "uint32", "uint64":
+			return []string{"int"}
 		}
 		return []string{t.Name}
 	case *ast.ArrayType:
@@ -354,6 +366,7 @@ func goTypeName(e ast.Expr, sec *section, pp *parsedPackage) string {
 			return fmt.Sprintf("%s.%s", importPath, typeName)
 		}
 		return fmt.Sprintf("%s.%s", pkgName, typeName)
+		// todo: give proper error message for *ast.StructType
 	}
 	log.Fatalf("unimplemented ast.Expr %#v in goTypeName\n", e)
 	return ""
