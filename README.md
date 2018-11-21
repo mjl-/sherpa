@@ -13,7 +13,7 @@ See the [documentation](https://godoc.org/bitbucket.org/mjl/sherpa).
 
 A public sherpa API: https://www.sherpadoc.org/#https://www.sherpadoc.org/example/
 
-That web application is [sherpaweb](https://bitbucket.org/mjl/sherpaweb]. It shows documentation for any sherpa API but also includes an API called Example for demo purposes.
+That web application is [sherpaweb](https://bitbucket.org/mjl/sherpaweb). It shows documentation for any sherpa API but also includes an API called Example for demo purposes.
 
 [Ding](https://github.com/irias/ding/) is a more elaborate web application built with this library.
 
