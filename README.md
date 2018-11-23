@@ -28,6 +28,8 @@ cmd/sherpadoc/gopath.go originates from the Go project, see LICENSE-go for its B
 
 # todo
 
+- finish the type information. perhaps add more specific types (int64, int32, and unsigned variants, instead of just "int").
+- better error messages in sherpadoc
 - handler: write tests
 - sherpadoc: write tests
 - client: write tests

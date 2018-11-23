@@ -462,13 +462,19 @@ func parseArgs(params *[]sherpa.Param, fields *ast.FieldList, sec *section, pp *
 	if fields == nil {
 		return
 	}
+	addParam := func(name string, typ typeTokens) {
+		param := sherpa.Param{Name: name, Type: typ}
+		*params = append(*params, param)
+	}
 	for _, f := range fields.List {
-		field := field{
-			Type: parseArgType(f.Type, sec, pp),
-		}
+		typ := parseArgType(f.Type, sec, pp)
+		// Handle named params. Can be both arguments to a function or return types.
 		for _, name := range f.Names {
-			param := sherpa.Param{Name: name.Name, Type: field.Type}
-			*params = append(*params, param)
+			addParam(name.Name, typ)
+		}
+		// Return types often don't have a name, don't forget them.
+		if len(f.Names) == 0 {
+			addParam("", typ)
 		}
 	}
 }
