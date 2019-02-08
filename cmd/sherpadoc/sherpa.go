@@ -1,4 +1,4 @@
-package sherpadoc
+package main
 
 import (
 	"bitbucket.org/mjl/sherpa"
