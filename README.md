@@ -2,9 +2,9 @@
 
 Sherpa is a Go library for creating a [sherpa API](https://www.ueber.net/who/mjl/sherpa/).
 
-This library makes it trivial to export Go functions as a  sherap API with an http.Handler.
+This library makes it trivial to export Go functions as a sherpa API with an http.Handler.
 
-Your API will automatically be documented: cmd/sherpadoc reads your Go source, and exports function and type comments as API documentation.
+Your API will automatically be documented: github.com/mjl-/sherpadoc reads your Go source, and exports function and type comments as API documentation.
 
 See the [documentation](https://godoc.org/github.com/mjl-/sherpa).
 
@@ -23,16 +23,12 @@ That web application is [sherpaweb](https://github.com/mjl-/sherpaweb). It shows
 Written by Mechiel Lukkien, mechiel@ueber.net.
 Bug fixes, patches, comments are welcome.
 MIT-licensed, see LICENSE.
-cmd/sherpadoc/gopath.go originates from the Go project, see LICENSE-go for its BSD-style license.
 
 
 # todo
 
-- finish the type information. perhaps add more specific types (int64, int32, and unsigned variants, instead of just "int").
-- better error messages in sherpadoc
+- sherpa: don't lowercase first char in function name by default, make it an option
+- sherpa: add a toggle for enabling calls by GET request. turn off by default, people might be making requests with sensitive information in query strings...
+- sherpa: in the collector, for FunctionCall, replace "serverError" with errorCode
 - handler: write tests
-- sherpadoc: write tests
 - client: write tests
-- sherpadoc: find out which go constructs people want to use that aren't yet implemented by sherpadoc
-
-- when reading types from other packages (imported packages), we only look at GOPATH. vendor and modules are not taking into account, but we should.

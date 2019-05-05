@@ -23,6 +23,7 @@ The parameters to a function must be valid JSON. Don't forget to quote the doubl
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/mjl-/sherpa"
 	"github.com/mjl-/sherpa/client"
+	"github.com/mjl-/sherpadoc"
 )
 
 var (
@@ -91,7 +93,7 @@ func main() {
 		log.Fatal(err)
 	}
 	var result interface{}
-	err = c.Call(&result, function, params...)
+	err = c.Call(context.Background(), &result, function, params...)
 	if err != nil {
 		switch serr := err.(type) {
 		case *sherpa.Error:
@@ -113,11 +115,11 @@ func info(url string) {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("ID: %s\n", c.ID)
-	fmt.Printf("Title: %s\n", c.Title)
-	fmt.Printf("Version: %s\n", c.Version)
+	fmt.Printf("ID: %s\n", c.JSON.ID)
+	fmt.Printf("Title: %s\n", c.JSON.Title)
+	fmt.Printf("Version: %s\n", c.JSON.Version)
 	fmt.Printf("BaseURL: %s\n", c.BaseURL)
-	fmt.Printf("SherpaVersion: %d\n", c.SherpaVersion)
+	fmt.Printf("SherpaVersion: %d\n", c.JSON.SherpaVersion)
 	fmt.Printf("Functions:\n")
 	for _, fn := range c.Functions {
 		fmt.Printf("- %s\n", fn)
@@ -130,8 +132,8 @@ func doc(url string, args []string) {
 		log.Fatal(err)
 	}
 
-	var doc sherpa.Doc
-	cerr := c.Call(&doc, "_docs")
+	var doc sherpadoc.Section
+	cerr := c.Call(context.Background(), &doc, "_docs")
 	if cerr != nil {
 		log.Fatalf("fetching documentation: %s\n", cerr)
 	}
@@ -139,28 +141,28 @@ func doc(url string, args []string) {
 	if len(args) == 1 {
 		printFunction(&doc, args[0])
 	} else {
-		printDocs(&doc)
+		printSection(&doc)
 	}
 }
 
-func printFunction(doc *sherpa.Doc, function string) {
+func printFunction(doc *sherpadoc.Section, function string) {
 	for _, fn := range doc.Functions {
 		if fn.Name == function {
-			fmt.Println(fn.Text)
+			fmt.Println(fn.Docs)
 		}
 	}
-	for _, subDoc := range doc.Sections {
-		printFunction(subDoc, function)
+	for _, subSec := range doc.Sections {
+		printFunction(subSec, function)
 	}
 }
 
-func printDocs(doc *sherpa.Doc) {
-	fmt.Printf("# %s\n\n%s\n\n", doc.Title, doc.Text)
-	for _, fnDoc := range doc.Functions {
-		fmt.Printf("# %s()\n%s\n\n", fnDoc.Name, fnDoc.Text)
+func printSection(sec *sherpadoc.Section) {
+	fmt.Printf("# %s\n\n%s\n\n", sec.Name, sec.Docs)
+	for _, fn := range sec.Functions {
+		fmt.Printf("# %s()\n%s\n\n", fn.Name, fn.Docs)
 	}
-	for _, subDoc := range doc.Sections {
-		printDocs(subDoc)
+	for _, subSec := range sec.Sections {
+		printSection(subSec)
 	}
 	fmt.Println("")
 }
