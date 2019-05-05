@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"bitbucket.org/mjl/sherpa"
+	"github.com/mjl-/sherpa"
 )
 
 const (

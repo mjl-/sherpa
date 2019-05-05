@@ -1,1 +1,1 @@
-module bitbucket.org/mjl/sherpa
+module github.com/mjl-/sherpa

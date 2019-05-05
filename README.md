@@ -6,14 +6,14 @@ This library makes it trivial to export Go functions as a  sherap API with an ht
 
 Your API will automatically be documented: cmd/sherpadoc reads your Go source, and exports function and type comments as API documentation.
 
-See the [documentation](https://godoc.org/bitbucket.org/mjl/sherpa).
+See the [documentation](https://godoc.org/github.com/mjl-/sherpa).
 
 
 ## Examples
 
 A public sherpa API: https://www.sherpadoc.org/#https://www.sherpadoc.org/example/
 
-That web application is [sherpaweb](https://bitbucket.org/mjl/sherpaweb). It shows documentation for any sherpa API but also includes an API called Example for demo purposes.
+That web application is [sherpaweb](https://github.com/mjl-/sherpaweb). It shows documentation for any sherpa API but also includes an API called Example for demo purposes.
 
 [Ding](https://github.com/irias/ding/) is a more elaborate web application built with this library.
 

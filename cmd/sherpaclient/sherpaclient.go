@@ -29,8 +29,8 @@ import (
 	"log"
 	"os"
 
-	"bitbucket.org/mjl/sherpa"
-	"bitbucket.org/mjl/sherpa/client"
+	"github.com/mjl-/sherpa"
+	"github.com/mjl-/sherpa/client"
 )
 
 var (

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bitbucket.org/mjl/sherpa"
+	"github.com/mjl-/sherpa"
 	"strings"
 )
 

@@ -100,9 +100,9 @@ a { color: #327CCB; }
 				You can also the <a href="{{.docURL}}">read documentation</a> for this API.</p>
 			</p>
 			<p style="text-align: center; font-size:smaller; margin-top:8ex;">
-				<a href="https://bitbucket.org/mjl/sherpa/">go sherpa code</a> |
+				<a href="https://github.com/mjl-/sherpa/">go sherpa code</a> |
 				<a href="https://www.ueber.net/who/mjl/sherpa/">sherpa api's</a> |
-				<a href="https://bitbucket.org/mjl/sherpaweb/">sherpaweb code</a>
+				<a href="https://github.com/mjl-/sherpaweb/">sherpaweb code</a>
 			</p>
 		</div>
 		<script src="{{.jsURL}}"></script>

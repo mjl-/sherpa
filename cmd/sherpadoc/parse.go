@@ -14,7 +14,7 @@ import (
 	"go/parser"
 	"go/token"
 
-	"bitbucket.org/mjl/sherpa"
+	"github.com/mjl-/sherpa"
 )
 
 // ParsedPackage possibly includes some of its imports because the package that contains the section references it.
