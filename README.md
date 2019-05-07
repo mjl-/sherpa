@@ -15,7 +15,7 @@ A public sherpa API: https://www.sherpadoc.org/#https://www.sherpadoc.org/exampl
 
 That web application is [sherpaweb](https://github.com/mjl-/sherpaweb). It shows documentation for any sherpa API but also includes an API called Example for demo purposes.
 
-[Ding](https://github.com/irias/ding/) is a more elaborate web application built with this library.
+[Ding](https://github.com/mjl-/ding/) is a more elaborate web application built with this library.
 
 
 # About
