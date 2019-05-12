@@ -66,11 +66,13 @@ func TestIntstr(t *testing.T) {
 	}
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	tcheck(err, "parsing returned json")
-	if response.Result.Intstr != -1<<62 {
-		t.Fatalf("bad response, got %v, expected %v (%s)\n", response.Result.Intstr, -1<<62, resp.Body.String())
+	const intstrVal = -1 << 62
+	const intVal = 1 << 62
+	if response.Result.Intstr != intstrVal {
+		t.Fatalf("bad response, got %v, expected %v (%s)\n", response.Result.Intstr, int64(intstrVal), resp.Body.String())
 	}
-	if response.Result.Int != 1<<62 {
-		t.Fatalf("bad response, got %v, expected %v\n", response.Result.Int, 1<<62)
+	if response.Result.Int != intVal {
+		t.Fatalf("bad response, got %v, expected %v\n", response.Result.Int, int64(intVal))
 	}
 }
 
