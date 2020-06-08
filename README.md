@@ -29,6 +29,5 @@ MIT-licensed, see LICENSE.
 
 - sherpa: don't lowercase first char in function name by default, make it an option
 - sherpa: add a toggle for enabling calls by GET request. turn off by default, people might be making requests with sensitive information in query strings...
-- sherpa: in the collector, for FunctionCall, replace "serverError" with errorCode
 - handler: write tests
 - client: write tests
