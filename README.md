@@ -27,7 +27,14 @@ MIT-licensed, see LICENSE.
 
 # todo
 
-- sherpa: don't lowercase first char in function name by default, make it an option
-- sherpa: add a toggle for enabling calls by GET request. turn off by default, people might be making requests with sensitive information in query strings...
+- add a toggle for enabling calls by GET request. turn off by default for functions with parameters, people might be making requests with sensitive information in query strings...
+- include a sherpaweb-like page that displays the documentation
+- consider adding input & output validation and timestamp conversion to plain js lib
+- consider using interfaces with functions (instead of direct structs) for server implementations. haven't needed it yet, but could be useful for mocking an api that you want to talk to.
+- think about way to keep unknown fields. perhaps use a json lib that collects unknown keys in a map (which has to be added to the object for which you want to keep such keys).
+- sherpajs: make a versionied, minified variant, with license line
+- tool for comparing two jsons for compatibility, listing added sections/functions/types/fields
+- add mechanism for returning raw responses ([]byte), instead of having the sherpa lib marshal the return value of a function to json. options: recognize a special return type from a function (eg type sherpa.Raw []byte); or pass the raw value out of found with a panic (abuse of panic, but it has the great advantage of keeping the return types intact).
+- be more helpful around errors that functions can generate. perhaps adding a mechanism for listing which errors can occur in the api json.
 - handler: write tests
 - client: write tests
