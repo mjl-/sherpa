@@ -288,7 +288,7 @@ func (h *handler) call(ctx context.Context, functionName string, fn reflect.Valu
 	}
 }
 
-func adjustFunctionNameCapitals(s string, opts *HandlerOpts) string {
+func adjustFunctionNameCapitals(s string, opts HandlerOpts) string {
 	switch opts.AdjustFunctionNames {
 	case "":
 		return strings.ToLower(s[:1]) + s[1:]
@@ -310,7 +310,7 @@ func adjustFunctionNameCapitals(s string, opts *HandlerOpts) string {
 	}
 }
 
-func gatherFunctions(functions map[string]reflect.Value, t reflect.Type, v reflect.Value, opts *HandlerOpts) error {
+func gatherFunctions(functions map[string]reflect.Value, t reflect.Type, v reflect.Value, opts HandlerOpts) error {
 	if t.Kind() != reflect.Struct {
 		return fmt.Errorf("sherpa sections must be a struct (not a ptr)")
 	}
@@ -377,7 +377,7 @@ func NewHandler(path string, version string, api interface{}, doc *sherpadoc.Sec
 			return doc
 		}),
 	}
-	err := gatherFunctions(functions, reflect.TypeOf(api), reflect.ValueOf(api), opts)
+	err := gatherFunctions(functions, reflect.TypeOf(api), reflect.ValueOf(api), xopts)
 	if err != nil {
 		return nil, err
 	}
