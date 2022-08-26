@@ -34,7 +34,6 @@ MIT-licensed, see LICENSE.
 - think about way to keep unknown fields. perhaps use a json lib that collects unknown keys in a map (which has to be added to the object for which you want to keep such keys).
 - sherpajs: make a versionied, minified variant, with license line
 - tool for comparing two jsons for compatibility, listing added sections/functions/types/fields
-- add mechanism for returning raw responses ([]byte), instead of having the sherpa lib marshal the return value of a function to json. options: recognize a special return type from a function (eg type sherpa.Raw []byte); or pass the raw value out of found with a panic (abuse of panic, but it has the great advantage of keeping the return types intact).
 - be more helpful around errors that functions can generate. perhaps adding a mechanism for listing which errors can occur in the api json.
 - handler: write tests
 - client: write tests

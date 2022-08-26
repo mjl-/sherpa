@@ -39,6 +39,15 @@ type HandlerOpts struct {
 	AdjustFunctionNames string    // If empty, only the first character of function names are lower cased. For "lowerWord", the first string of capitals is lowercased, for "none", the function name is left as is.
 }
 
+// Raw signals a raw JSON response.
+// If a handler panics with this type, the raw bytes are sent (with regular
+// response headers).
+// Can be used to skip the json encoding from the handler, eg for caching, or
+// when you read a properly formatted JSON document from a file or database.
+// By using panic to signal a raw JSON response, the return types stay intact
+// for sherpadoc to generate documentation from.
+type Raw []byte
+
 // handler that responds to all Sherpa-related requests.
 type handler struct {
 	path       string
@@ -130,27 +139,37 @@ func getBaseURL(r *http.Request) string {
 	return scheme + "://" + host
 }
 
-func respondJSON(w http.ResponseWriter, status int, r *response, _ string) {
-	w.Header().Add("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	err := json.NewEncoder(w).Encode(r)
-	if err != nil && !isConnectionClosed(err) {
-		log.Println("writing json response:", err)
-	}
+func respondJSON(w http.ResponseWriter, status int, v interface{}) {
+	respond(w, status, v, false, "")
 }
 
-func respondJSONP(w http.ResponseWriter, status int, r *response, callback string) {
-	w.Header().Add("Content-Type", "text/javascript; charset=utf-8")
-	w.WriteHeader(status)
-	_, err := fmt.Fprintf(w, "%s(\n\t", callback)
-	if err == nil {
-		err = json.NewEncoder(w).Encode(r)
+func respond(w http.ResponseWriter, status int, v interface{}, jsonp bool, callback string) {
+	if jsonp {
+		w.Header().Add("Content-Type", "text/javascript; charset=utf-8")
+	} else {
+		w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	}
-	if err == nil {
+	w.WriteHeader(status)
+	var err error
+	if jsonp {
+		_, err = fmt.Fprintf(w, "%s(\n\t", callback)
+	}
+	if raw, ok := v.(Raw); err == nil && ok {
+		_, err = w.Write([]byte(`{"result":`))
+		if err == nil {
+			_, err = w.Write(raw)
+		}
+		if err == nil {
+			_, err = w.Write([]byte("}"))
+		}
+	} else if err == nil && !ok {
+		err = json.NewEncoder(w).Encode(v)
+	}
+	if err == nil && jsonp {
 		_, err = fmt.Fprint(w, ");")
 	}
-	if err != nil && isConnectionClosed(err) {
-		log.Println("error writing json response:", err)
+	if err != nil && !isConnectionClosed(err) {
+		log.Println("writing response:", err)
 	}
 }
 
@@ -161,6 +180,7 @@ func respondJSONP(w http.ResponseWriter, status int, r *response, callback strin
 // - nil, if fn has no return value
 // - single value, if fn had a single return value
 // - slice of values, if fn had multiple return values
+// - Raw, for a preformatted JSON response (caught from panic).
 //
 // on error, we always return an Error with the Code field set.
 func (h *handler) call(ctx context.Context, functionName string, fn reflect.Value, r io.Reader) (ret interface{}, ee error) {
@@ -178,6 +198,10 @@ func (h *handler) call(ctx context.Context, functionName string, fn reflect.Valu
 		ierr, ok := e.(*InternalServerError)
 		if ok {
 			ee = ierr
+			return
+		}
+		if raw, ok := e.(Raw); ok {
+			ret = raw
 			return
 		}
 		panic(e)
@@ -431,9 +455,9 @@ func validCallback(cb string) bool {
 // ServeHTTP expects the request path is stripped from the path it was mounted at with the http package.
 //
 // The following endpoints are handled:
-// 	- sherpa.json, describing this API.
-// 	- sherpa.js, a small stand-alone client JavaScript library that makes it trivial to start using this API from a browser.
-// 	- functionName, for function invocations on this API.
+//   - sherpa.json, describing this API.
+//   - sherpa.js, a small stand-alone client JavaScript library that makes it trivial to start using this API from a browser.
+//   - functionName, for function invocations on this API.
 //
 // HTTP response will have CORS-headers set, and support the OPTIONS HTTP method.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -505,35 +529,33 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case "POST":
 			hdr.Set("Cache-Control", "no-store")
 
-			respond := respondJSON
-
 			if !ok {
 				collector.BadFunction()
-				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
+				respondJSON(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}})
 				return
 			}
 
 			ct := r.Header.Get("Content-Type")
 			if ct == "" {
 				collector.ProtocolError()
-				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("missing content-type")}}, "")
+				respondJSON(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("missing content-type")}})
 				return
 			}
 			mt, mtparams, err := mime.ParseMediaType(ct)
 			if err != nil {
 				collector.ProtocolError()
-				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("invalid content-type %q", ct)}}, "")
+				respondJSON(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("invalid content-type %q", ct)}})
 				return
 			}
 			if mt != "application/json" {
 				collector.ProtocolError()
-				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unrecognized content-type %q, expecting "application/json"`, mt)}}, "")
+				respondJSON(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unrecognized content-type %q, expecting "application/json"`, mt)}})
 				return
 			}
 			charset, ok := mtparams["charset"]
 			if ok && strings.ToLower(charset) != "utf-8" {
 				collector.ProtocolError()
-				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unexpected charset %q, expecting "utf-8"`, charset)}}, "")
+				respondJSON(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`unexpected charset %q, expecting "utf-8"`, charset)}})
 				return
 			}
 
@@ -544,33 +566,39 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				switch err := xerr.(type) {
 				case *InternalServerError:
 					collector.FunctionCall(name, durationSec, err.Code)
-					respond(w, 500, &response{Error: err.error()}, "")
+					respondJSON(w, 500, &response{Error: err.error()})
 				case *Error:
 					collector.FunctionCall(name, durationSec, err.Code)
-					respond(w, 200, &response{Error: err}, "")
+					respondJSON(w, 200, &response{Error: err})
 				default:
 					collector.FunctionCall(name, durationSec, "server:panic")
 					panic(err)
 				}
 			} else {
+				var v interface{}
+				if raw, ok := r.(Raw); ok {
+					v = raw
+				} else {
+					v = &response{Result: r}
+				}
 				collector.FunctionCall(name, durationSec, "")
-				respond(w, 200, &response{Result: r}, "")
+				respondJSON(w, 200, v)
 			}
 
 		case "GET":
 			hdr.Set("Cache-Control", "no-store")
 
-			respond := respondJSON
+			jsonp := false
 			if !ok {
 				collector.BadFunction()
-				respond(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}}, "")
+				respondJSON(w, 404, &response{Error: &Error{Code: SherpaBadFunction, Message: fmt.Sprintf("function %q does not exist", name)}})
 				return
 			}
 
 			err := r.ParseForm()
 			if err != nil {
 				collector.ProtocolError()
-				respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("could not parse query string")}}, "")
+				respondJSON(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf("could not parse query string")}})
 				return
 			}
 
@@ -579,13 +607,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if ok {
 				if !validCallback(callback) {
 					collector.ProtocolError()
-					respond(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`invalid callback name %q`, callback)}}, "")
+					respondJSON(w, 200, &response{Error: &Error{Code: SherpaBadRequest, Message: fmt.Sprintf(`invalid callback name %q`, callback)}})
 					return
 				}
-				respond = respondJSONP
+				jsonp = true
 			}
 
-			// we allow an empty list to be missing to make it cleaner & easier to call health check functions (no ugly urls)
+			// We allow an empty list to be missing to make it cleaner & easier to call health check functions (no ugly urls).
 			body := r.Form.Get("body")
 			_, ok = r.Form["body"]
 			if !ok {
@@ -599,17 +627,23 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				switch err := xerr.(type) {
 				case *InternalServerError:
 					collector.FunctionCall(name, durationSec, err.Code)
-					respond(w, 500, &response{Error: err.error()}, callback)
+					respond(w, 500, &response{Error: err.error()}, jsonp, callback)
 				case *Error:
 					collector.FunctionCall(name, durationSec, err.Code)
-					respond(w, 200, &response{Error: err}, callback)
+					respond(w, 200, &response{Error: err}, jsonp, callback)
 				default:
 					collector.FunctionCall(name, durationSec, "server:panic")
 					panic(err)
 				}
 			} else {
+				var v interface{}
+				if raw, ok := r.(Raw); ok {
+					v = raw
+				} else {
+					v = &response{Result: r}
+				}
 				collector.FunctionCall(name, durationSec, "")
-				respond(w, 200, &response{Result: r}, callback)
+				respond(w, 200, v, jsonp, callback)
 			}
 
 		default:
