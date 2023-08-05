@@ -336,7 +336,7 @@ func adjustFunctionNameCapitals(s string, opts HandlerOpts) string {
 
 func gatherFunctions(functions map[string]reflect.Value, t reflect.Type, v reflect.Value, opts HandlerOpts) error {
 	if t.Kind() != reflect.Struct {
-		return fmt.Errorf("sherpa sections must be a struct (not a ptr)")
+		return fmt.Errorf("sherpa sections must be a struct (is %v)", t)
 	}
 	for i := 0; i < t.NumMethod(); i++ {
 		name := adjustFunctionNameCapitals(t.Method(i).Name, opts)
@@ -347,7 +347,11 @@ func gatherFunctions(functions map[string]reflect.Value, t reflect.Type, v refle
 		functions[name] = m
 	}
 	for i := 0; i < t.NumField(); i++ {
-		err := gatherFunctions(functions, t.Field(i).Type, v.Field(i), opts)
+		f := t.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		err := gatherFunctions(functions, f.Type, v.Field(i), opts)
 		if err != nil {
 			return err
 		}
