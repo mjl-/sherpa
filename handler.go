@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"log/slog"
 	"mime"
 	"net/http"
 	"reflect"
@@ -50,6 +51,19 @@ type HandlerOpts struct {
 	// Don't send any CORS headers, and respond to OPTIONS requests with 405 "bad
 	// method".
 	NoCORS bool
+
+	// If set, called to create a context to use when calling sherpa functions. If not
+	// set, the HTTP request context is used.
+	NewContext func(req *http.Request, method string, params []any) context.Context
+
+	// If not nil, used for logging.
+	// Incoming requests are logged at level debug-4 with message "sherpa request".
+	// Error responses are logged at level error with message "sherpa error response"
+	// and attributes "errcode" and "errmsg".
+	// Non-error responses are logged at level debug-4 with message "sherpa response",
+	// the result is not logged.
+	// The context from NewContext, or the HTTP request context, is used for logging.
+	Logger *slog.Logger
 }
 
 // Raw signals a raw JSON response.
@@ -196,28 +210,49 @@ func respond(w http.ResponseWriter, status int, v interface{}, jsonp bool, callb
 // - Raw, for a preformatted JSON response (caught from panic).
 //
 // on error, we always return an Error with the Code field set.
-func (h *handler) call(ctx context.Context, functionName string, fn reflect.Value, r io.Reader) (ret interface{}, ee error) {
+func (h *handler) call(req *http.Request, functionName string, fn reflect.Value, r io.Reader) (ret interface{}, ee error) {
+	var ctx context.Context
+
 	defer func() {
-		e := recover()
-		if e == nil {
-			return
+		if h.opts.Logger != nil {
+			defer func() {
+				var attrs []slog.Attr
+				if ee != nil {
+					var code, message string
+					if se, ok := ee.(*Error); ok {
+						code, message = se.Code, se.Message
+					} else if se, ok := ee.(*InternalServerError); ok {
+						code, message = se.Code, se.Message
+					} else {
+						code, message = "server:panic", ee.Error()
+					}
+					attrs = []slog.Attr{slog.String("errcode", code), slog.String("errmsg", message)}
+				}
+				if ctx == nil {
+					ctx = req.Context()
+					attrs = append(attrs, slog.String("sherpamethod", functionName))
+				}
+				if ee != nil {
+					h.opts.Logger.LogAttrs(ctx, slog.LevelError, "sherpa error response", attrs...)
+				} else {
+					h.opts.Logger.LogAttrs(ctx, slog.LevelDebug-4, "sherpa response", attrs...)
+				}
+			}()
 		}
 
-		se, ok := e.(*Error)
-		if ok {
+		e := recover()
+		if e == nil {
+			// Nothing
+		} else if se, ok := e.(*Error); ok {
 			ee = se
-			return
-		}
-		ierr, ok := e.(*InternalServerError)
-		if ok {
+		} else if ierr, ok := e.(*InternalServerError); ok {
 			ee = ierr
-			return
-		}
-		if raw, ok := e.(Raw); ok {
+		} else if raw, ok := e.(Raw); ok {
 			ret = raw
-			return
+		} else {
+			ee = fmt.Errorf("%v", e)
+			panic(e)
 		}
-		panic(e)
 	}()
 
 	lcheck := func(err error, code, message string) {
@@ -258,6 +293,15 @@ func (h *handler) call(ctx context.Context, functionName string, fn reflect.Valu
 		}
 	}
 	lcheck(err, SherpaBadParams, "bad number of parameters")
+
+	if h.opts.NewContext == nil {
+		ctx = req.Context()
+	} else {
+		ctx = h.opts.NewContext(req, functionName, params)
+	}
+	if h.opts.Logger != nil {
+		h.opts.Logger.Log(ctx, slog.LevelDebug-4, "sherpa request")
+	}
 
 	values := make([]reflect.Value, needValues)
 	o := 0
@@ -584,7 +628,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			t0 := time.Now()
-			r, xerr := h.call(r.Context(), name, fn, r.Body)
+			r, xerr := h.call(r, name, fn, r.Body)
 			durationSec := float64(time.Since(t0)) / float64(time.Second)
 			if xerr != nil {
 				switch err := xerr.(type) {
@@ -645,7 +689,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 
 			t0 := time.Now()
-			r, xerr := h.call(r.Context(), name, fn, strings.NewReader(body))
+			r, xerr := h.call(r, name, fn, strings.NewReader(body))
 			durationSec := float64(time.Since(t0)) / float64(time.Second)
 			if xerr != nil {
 				switch err := xerr.(type) {
